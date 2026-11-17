@@ -140,9 +140,17 @@ tool schema.
 ## Known limitations
 
 - **Scraped SERPs are fragile.** DuckDuckGo's HTML endpoint answers datacenter
-  IPs with an HTTP 202 anti-bot page, and Bing's `format=rss` frequently returns
-  a single stale item. The engines report `empty` in the health strip rather
-  than failing loudly. Keyless API providers carry most of the real web results.
+  IPs with an HTTP 202 anti-bot page and zero results, which the engine reports
+  as `empty` rather than failing loudly. Bing's `format=rss` still returns
+  results, but edge caching can serve a mismatched page set, so the adapter
+  discards batches whose titles/snippets share no token with the query.
+- **Pagination is partial.** Exa, Parallel, Tavily, Firecrawl and Keenable emit
+  nothing past page 1, as does the science concept-overview task, so later pages
+  are thinner than the first.
+- **OpenAlex without a key is budget-shared.** The API serves keyless requests
+  from one free daily allowance tied to the caller's IP ("$0.10 with everyone on
+  your network's IP address"), so a busy host or shared NAT will start getting
+  throttled. Set `OPENALEX_API_KEY` for anything beyond light use.
 - **Zero-result fallback is synthetic.** When a first-page web query returns
   nothing, Pharol injects two hand-built entries pointing at Wikipedia and
   GitHub search. They are navigational aids, not search hits, and are labeled
