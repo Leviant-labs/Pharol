@@ -69,6 +69,9 @@ npm install
 npm run dev      # http://localhost:3000
 ```
 
+No lockfile is committed; the first `npm install` generates `package-lock.json`,
+which should be committed afterwards to pin the tree.
+
 `GEMINI_API_KEY` is optional end-to-end. It enables `/api/answer` (synthesis
 with inline citations); search, reader mode, verticals and MCP all work without
 it.
@@ -99,12 +102,16 @@ their own credentials without storing them.
 ## Tests
 
 `lib/search-engine.test.ts` and `lib/mcp-tools.test.ts` use `node:test` and
-import TypeScript directly. There is no `test` script in `package.json` yet;
-run them with a TypeScript-capable runner:
+import TypeScript directly, so they run through `tsx`:
 
 ```bash
-npx tsx --test lib/search-engine.test.ts lib/mcp-tools.test.ts
+npm test
 ```
+
+The suites cover query syntax parsing, URL normalization, rank fusion and
+deduplication, OpenAlex abstract reconstruction, markdown-to-reader conversion,
+HTML entity decoding, access classification, MCP JSON-RPC framing, and the MCP
+tool schema.
 
 ## Known limitations
 
