@@ -1,0 +1,204 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { Newspaper, RefreshCw, ArrowUpRight, BookOpen } from 'lucide-react';
+import { NewsAccessFilter, SearchRegion, SearchResult } from '@/lib/search-types';
+import { filterNewsByAccess } from '@/lib/search-engine';
+
+interface NewsWidgetProps {
+  region?: SearchRegion;
+  onSearchQuery: (query: string) => void;
+  onReadArticle?: (item: SearchResult) => void;
+}
+
+export function NewsWidget({ region = 'auto', onSearchQuery, onReadArticle }: NewsWidgetProps) {
+  const [news, setNews] = useState<SearchResult[]>([]);
+  const [topic, setTopic] = useState<'TOP' | 'TECHNOLOGY' | 'SCIENCE' | 'BUSINESS'>('TOP');
+  const [accessMode, setAccessMode] = useState<NewsAccessFilter>('free');
+  const [loading, setLoading] = useState(true);
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
+
+  const buildNewsUrl = (selectedTopic: string) => {
+    const lang = typeof navigator !== 'undefined' ? navigator.language || '' : '';
+    return `/api/news?topic=${selectedTopic}&region=${encodeURIComponent(region)}&lang=${encodeURIComponent(lang)}`;
+  };
+
+  const fetchNews = async (selectedTopic: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(buildNewsUrl(selectedTopic));
+      if (res.ok) {
+        const data = await res.json();
+        setNews(data.items || []);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+    const lang = typeof navigator !== 'undefined' ? navigator.language || '' : '';
+    fetch(`/api/news?topic=${topic}&region=${encodeURIComponent(region)}&lang=${encodeURIComponent(lang)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (active) {
+          setNews(data.items || []);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [topic, region]);
+
+  const topics: Array<{ id: 'TOP' | 'TECHNOLOGY' | 'SCIENCE' | 'BUSINESS'; label: string }> = [
+    { id: 'TOP', label: 'Top' },
+    { id: 'TECHNOLOGY', label: 'Tech' },
+    { id: 'SCIENCE', label: 'Science' },
+    { id: 'BUSINESS', label: 'Business' },
+  ];
+
+  return (
+    <div className="rounded-3xl pharol-liquid-glass p-5 transition-colors">
+      <div className="pb-3 border-b border-neutral-900/10 dark:border-white/10 space-y-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+            <Newspaper className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-400" />
+            <span>Headlines</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() =>
+                setAccessMode((prev) =>
+                  prev === 'free' ? 'open-wire' : prev === 'open-wire' ? 'all' : 'free'
+                )
+              }
+              title="Cycle source filter: Free (no paywalls) / Open Wire Only / All"
+              className="rounded-full pharol-glass-chip px-2.5 py-0.5 text-[10px] font-mono text-neutral-700 hover:text-neutral-950 dark:text-neutral-200 dark:hover:text-white"
+            >
+              {accessMode === 'open-wire' ? 'Wire' : accessMode === 'free' ? 'Free' : 'All'}
+            </button>
+            <button
+              onClick={() => fetchNews(topic)}
+              className="text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 p-0.5"
+              aria-label="Refresh headlines"
+            >
+              <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {topics.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTopic(t.id)}
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                topic === t.id
+                  ? 'pharol-liquid-btn'
+                  : 'text-neutral-600 hover:text-neutral-950 dark:text-neutral-300 dark:hover:text-white'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="pt-3 space-y-3.5">
+        {loading && news.length === 0 ? (
+          <div className="py-8 text-center text-xs text-neutral-400">Loading headlines...</div>
+        ) : filterNewsByAccess(news, accessMode).length > 0 ? (
+          filterNewsByAccess(news, accessMode).slice(0, 4).map((item) => {
+            const hasThumb = Boolean(item.thumbnail) && !failedImages[item.id];
+            return (
+              <div key={item.id} className="group text-left flex items-start gap-2.5">
+                {hasThumb ? (
+                  <img
+                    src={item.thumbnail}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    onError={() => setFailedImages((prev) => ({ ...prev, [item.id]: true }))}
+                    className="h-11 w-11 shrink-0 rounded-md object-cover border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 mt-0.5"
+                  />
+                ) : (
+                  <div className="h-11 w-11 shrink-0 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-neutral-400 mt-0.5">
+                    <Newspaper className="h-4 w-4" />
+                  </div>
+                )}
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-1">
+                    {onReadArticle ? (
+                      <button
+                        type="button"
+                        onClick={() => onReadArticle(item)}
+                        className="text-left text-xs font-medium text-neutral-800 hover:text-neutral-950 hover:underline dark:text-neutral-200 dark:hover:text-white line-clamp-2 leading-snug"
+                      >
+                        {item.title}
+                      </button>
+                    ) : (
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-medium text-neutral-800 hover:text-neutral-950 hover:underline dark:text-neutral-200 dark:hover:text-white line-clamp-2 leading-snug"
+                      >
+                        {item.title}
+                      </a>
+                    )}
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-opacity shrink-0"
+                      aria-label={`Open ${item.title} directly`}
+                    >
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+                    <span className="truncate max-w-[110px] font-medium">{item.displayedUrl}</span>
+                    {item.publishedDate && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span className="truncate">{item.publishedDate}</span>
+                      </>
+                    )}
+                    {onReadArticle && (
+                      <button
+                        type="button"
+                        onClick={() => onReadArticle(item)}
+                        className="ml-auto inline-flex items-center gap-1 text-neutral-600 hover:text-neutral-950 dark:text-neutral-400 dark:hover:text-white shrink-0"
+                      >
+                        <BookOpen className="h-3 w-3" />
+                        <span>Read</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="py-6 text-center text-xs text-neutral-400">
+            No headlines available.{' '}
+            <button onClick={() => onSearchQuery('world news')} className="underline">
+              Search news
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

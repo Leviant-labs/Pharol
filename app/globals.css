@@ -1,0 +1,290 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-sans: var(--font-plus-jakarta), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-serif: var(--font-source-serif), Georgia, Cambria, "Times New Roman", serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@layer components {
+  .pharol-canvas {
+    background-color: #ebf1fa;
+    background-image:
+      radial-gradient(ellipse 68% 52% at 14% 10%, rgba(56, 189, 248, 0.28), transparent 62%),
+      radial-gradient(ellipse 64% 50% at 86% 16%, rgba(99, 102, 241, 0.24), transparent 60%),
+      radial-gradient(ellipse 56% 46% at 52% 48%, rgba(168, 85, 247, 0.14), transparent 66%),
+      radial-gradient(ellipse 62% 48% at 22% 88%, rgba(251, 146, 60, 0.12), transparent 62%),
+      linear-gradient(150deg, #eff5fc 0%, #e4ecfa 52%, #edf0fb 100%);
+    background-attachment: fixed;
+  }
+  :where(.dark, .dark *) .pharol-canvas {
+    background-color: #000000;
+    background-image:
+      radial-gradient(ellipse 26% 22% at 22% 28%, rgba(37, 99, 235, 0.2), transparent 64%),
+      radial-gradient(ellipse 24% 20% at 78% 26%, rgba(16, 185, 129, 0.15), transparent 64%),
+      radial-gradient(ellipse 26% 22% at 54% 68%, rgba(249, 115, 22, 0.15), transparent 64%),
+      radial-gradient(ellipse 22% 18% at 28% 76%, rgba(14, 165, 233, 0.13), transparent 62%);
+    background-attachment: fixed;
+  }
+
+  /* 3D Liquid Glass Surface (40px refraction blur + specular edge bevel + inner glow) */
+  .pharol-glass,
+  .pharol-liquid-glass,
+  .pharol-clay {
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.64) 0%,
+      rgba(248, 251, 255, 0.44) 55%,
+      rgba(238, 244, 255, 0.52) 100%
+    );
+    backdrop-filter: blur(36px) saturate(195%);
+    -webkit-backdrop-filter: blur(36px) saturate(195%);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow:
+      0 20px 44px -16px rgba(15, 23, 42, 0.16),
+      0 4px 12px -2px rgba(30, 58, 138, 0.06),
+      inset 0 1px 1px rgba(255, 255, 255, 0.96),
+      inset 1px 0 1px rgba(255, 255, 255, 0.65),
+      inset 0 -1px 1px rgba(59, 130, 246, 0.1),
+      inset 0 0 22px rgba(255, 255, 255, 0.28);
+  }
+  :where(.dark, .dark *) .pharol-glass,
+  :where(.dark, .dark *) .pharol-liquid-glass,
+  :where(.dark, .dark *) .pharol-clay {
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.085) 0%,
+      rgba(16, 18, 22, 0.46) 52%,
+      rgba(255, 255, 255, 0.035) 100%
+    );
+    backdrop-filter: blur(38px) saturate(185%);
+    -webkit-backdrop-filter: blur(38px) saturate(185%);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow:
+      0 22px 48px -14px rgba(0, 0, 0, 0.85),
+      0 4px 16px -4px rgba(0, 0, 0, 0.65),
+      inset 0 1px 1px rgba(255, 255, 255, 0.36),
+      inset 1px 0 1px rgba(255, 255, 255, 0.18),
+      inset 0 -1px 1px rgba(255, 255, 255, 0.12),
+      inset 0 0 20px rgba(255, 255, 255, 0.05);
+  }
+
+  /* Optional iridescent 3D glass prism edge for hero panes (Reader Mode, Answer Box, Lightbox) */
+  .pharol-liquid-iridescent::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      100deg,
+      rgba(255, 255, 255, 0.9) 0%,
+      rgba(56, 189, 248, 0.45) 28%,
+      rgba(16, 185, 129, 0.32) 56%,
+      rgba(249, 115, 22, 0.32) 82%,
+      rgba(255, 255, 255, 0.8) 100%
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 1;
+  }
+  :where(.dark, .dark *) .pharol-liquid-iridescent::before {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.58) 0%,
+      rgba(59, 130, 246, 0.42) 26%,
+      rgba(16, 185, 129, 0.34) 54%,
+      rgba(249, 115, 22, 0.34) 80%,
+      rgba(255, 255, 255, 0.48) 100%
+    );
+  }
+
+  /* Higher-legibility frosted glass for long-form Reader Mode prose */
+  .pharol-reader-glass {
+    background: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.82) 0%,
+      rgba(244, 248, 255, 0.72) 100%
+    );
+    backdrop-filter: blur(44px) saturate(190%);
+    -webkit-backdrop-filter: blur(44px) saturate(190%);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow:
+      0 28px 64px -16px rgba(15, 23, 42, 0.24),
+      inset 0 1px 1px rgba(255, 255, 255, 0.98),
+      inset 0 0 28px rgba(255, 255, 255, 0.35);
+  }
+  :where(.dark, .dark *) .pharol-reader-glass {
+    background: linear-gradient(
+      155deg,
+      rgba(14, 15, 18, 0.82) 0%,
+      rgba(5, 6, 8, 0.76) 100%
+    );
+    backdrop-filter: blur(44px) saturate(185%);
+    -webkit-backdrop-filter: blur(44px) saturate(185%);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow:
+      0 30px 70px -14px rgba(0, 0, 0, 0.9),
+      inset 0 1px 1px rgba(255, 255, 255, 0.4),
+      inset 1px 0 1px rgba(255, 255, 255, 0.16),
+      inset 0 -1px 1px rgba(255, 255, 255, 0.12),
+      inset 0 0 24px rgba(255, 255, 255, 0.05);
+  }
+
+  /* Recessed Liquid Glass Input Well */
+  .pharol-glass-inset,
+  .pharol-clay-inset {
+    background: linear-gradient(
+      170deg,
+      rgba(255, 255, 255, 0.62) 0%,
+      rgba(241, 246, 255, 0.46) 100%
+    );
+    backdrop-filter: blur(28px) saturate(185%);
+    -webkit-backdrop-filter: blur(28px) saturate(185%);
+    border: 1px solid rgba(255, 255, 255, 0.82);
+    box-shadow:
+      inset 0 2px 6px rgba(15, 23, 42, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 8px 22px -8px rgba(15, 23, 42, 0.12);
+  }
+  :where(.dark, .dark *) .pharol-glass-inset,
+  :where(.dark, .dark *) .pharol-clay-inset {
+    background: linear-gradient(
+      170deg,
+      rgba(255, 255, 255, 0.075) 0%,
+      rgba(8, 9, 12, 0.62) 100%
+    );
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow:
+      inset 0 2px 8px rgba(0, 0, 0, 0.55),
+      inset 0 1px 1px rgba(255, 255, 255, 0.24),
+      inset 0 0 14px rgba(255, 255, 255, 0.04),
+      0 10px 24px -10px rgba(0, 0, 0, 0.72);
+  }
+
+  /* Primary 3D Glossy Pill / CTA */
+  .pharol-clay-btn,
+  .pharol-liquid-btn {
+    background: linear-gradient(
+      180deg,
+      rgba(28, 39, 72, 0.94) 0%,
+      rgba(12, 18, 38, 0.98) 100%
+    );
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.34);
+    box-shadow:
+      0 10px 22px -6px rgba(15, 23, 42, 0.36),
+      inset 0 1px 1px rgba(255, 255, 255, 0.44),
+      inset 0 -2px 4px rgba(0, 0, 0, 0.38),
+      inset 0 0 12px rgba(147, 197, 253, 0.16);
+    transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1), filter 150ms ease, box-shadow 150ms ease;
+  }
+  .pharol-clay-btn:hover,
+  .pharol-liquid-btn:hover {
+    filter: brightness(1.1);
+  }
+  .pharol-clay-btn:active,
+  .pharol-liquid-btn:active {
+    transform: translateY(0.5px) scale(0.99);
+  }
+  :where(.dark, .dark *) .pharol-clay-btn,
+  :where(.dark, .dark *) .pharol-liquid-btn {
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.96) 0%,
+      rgba(232, 236, 242, 0.9) 100%
+    );
+    color: #050507;
+    border: 1px solid rgba(255, 255, 255, 0.96);
+    box-shadow:
+      0 10px 24px -6px rgba(0, 0, 0, 0.72),
+      inset 0 1px 1px rgba(255, 255, 255, 1),
+      inset 0 -2px 4px rgba(0, 0, 0, 0.12);
+  }
+  :where(.dark, .dark *) .pharol-clay-btn:hover,
+  :where(.dark, .dark *) .pharol-liquid-btn:hover {
+    filter: brightness(0.95);
+  }
+
+  /* 3D Specular Glass Chip / Control Pill (like iOS Liquid Glass Button/Focus/Back) */
+  .pharol-glass-chip,
+  .pharol-clay-chip {
+    background: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.72) 0%,
+      rgba(238, 245, 255, 0.44) 100%
+    );
+    backdrop-filter: blur(24px) saturate(185%);
+    -webkit-backdrop-filter: blur(24px) saturate(185%);
+    border: 1px solid rgba(255, 255, 255, 0.86);
+    box-shadow:
+      0 6px 16px -4px rgba(15, 23, 42, 0.1),
+      inset 0 1px 1px rgba(255, 255, 255, 0.95),
+      inset 0 -1px 1px rgba(59, 130, 246, 0.08),
+      inset 0 0 12px rgba(255, 255, 255, 0.22);
+    transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1), background 150ms ease, border-color 150ms ease;
+  }
+  .pharol-glass-chip:hover,
+  .pharol-clay-chip:hover {
+    background: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.88) 0%,
+      rgba(242, 248, 255, 0.64) 100%
+    );
+  }
+  .pharol-glass-chip:active,
+  .pharol-clay-chip:active {
+    transform: translateY(0.5px) scale(0.985);
+  }
+  :where(.dark, .dark *) .pharol-glass-chip,
+  :where(.dark, .dark *) .pharol-clay-chip {
+    background: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.13) 0%,
+      rgba(22, 24, 30, 0.36) 55%,
+      rgba(255, 255, 255, 0.05) 100%
+    );
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow:
+      0 8px 18px -4px rgba(0, 0, 0, 0.65),
+      inset 0 1px 1px rgba(255, 255, 255, 0.36),
+      inset 1px 0 1px rgba(255, 255, 255, 0.14),
+      inset 0 -1px 1px rgba(255, 255, 255, 0.12),
+      inset 0 0 12px rgba(255, 255, 255, 0.06);
+  }
+  :where(.dark, .dark *) .pharol-glass-chip:hover,
+  :where(.dark, .dark *) .pharol-clay-chip:hover {
+    background: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.2) 0%,
+      rgba(34, 38, 46, 0.44) 55%,
+      rgba(255, 255, 255, 0.09) 100%
+    );
+    border-color: rgba(255, 255, 255, 0.34);
+  }
+}

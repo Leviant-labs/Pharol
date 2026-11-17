@@ -1,0 +1,8 @@
+{
+  "name": "Remix SearX Minimal - Private Metasearch Engine",
+  "description": "A high-performance, privacy-focused standalone metasearch engine with keyless multi-source aggregation, local browser-only caching, and monochromatic minimalist UI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

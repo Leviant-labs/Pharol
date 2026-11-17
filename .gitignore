@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Env (keep the example)
+.env*
+!.env.example
+
+# Logs / OS
+*.log
+.DS_Store
+
+# Deploy
+.vercel
+
+# AI Studio export scratch
+.aistudio/
+
+# Coverage
+coverage/

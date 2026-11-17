@@ -1,0 +1,102 @@
+import { SearchResponse } from './search-types';
+
+interface CacheEntry {
+  value: SearchResponse;
+  expiresAt: number;
+}
+
+const MAX_CACHE_ENTRIES = 100;
+const searchCache = new Map<string, CacheEntry>();
+const engineCooldownUntil = new Map<string, number>();
+
+export function buildSearchCacheKey(params: {
+  query: string;
+  category: string;
+  region: string;
+  timeRange: string;
+  page: number;
+  engines: string;
+}): string {
+  return JSON.stringify([
+    params.query.trim().toLowerCase(),
+    params.category,
+    params.region,
+    params.timeRange,
+    params.page,
+    params.engines,
+  ]);
+}
+
+export function getCachedSearchResponse(
+  key: string,
+  nowMs: number = Date.now()
+): SearchResponse | null {
+  const entry = searchCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= nowMs) {
+    searchCache.delete(key);
+    return null;
+  }
+  // Refresh LRU order
+  searchCache.delete(key);
+  searchCache.set(key, entry);
+  return {
+    ...entry.value,
+    cacheHit: true,
+    timeTakenMs: 1,
+  };
+}
+
+export function setCachedSearchResponse(
+  key: string,
+  value: SearchResponse,
+  ttlMs: number = 180_000,
+  nowMs: number = Date.now()
+): void {
+  if (!value.results || value.results.length === 0) return;
+  if (searchCache.has(key)) {
+    searchCache.delete(key);
+  }
+  searchCache.set(key, {
+    value: {
+      ...value,
+      cacheHit: false,
+    },
+    expiresAt: nowMs + ttlMs,
+  });
+
+  if (searchCache.size > MAX_CACHE_ENTRIES) {
+    const oldestKey = searchCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      searchCache.delete(oldestKey);
+    }
+  }
+}
+
+export function clearSearchCache(): void {
+  searchCache.clear();
+  engineCooldownUntil.clear();
+}
+
+export function isEngineCoolingDown(engineId: string, nowMs: number = Date.now()): boolean {
+  const id = engineId.toLowerCase();
+  const until = engineCooldownUntil.get(id);
+  if (!until) return false;
+  if (until <= nowMs) {
+    engineCooldownUntil.delete(id);
+    return false;
+  }
+  return true;
+}
+
+export function recordEngineRateLimit(
+  engineId: string,
+  cooldownMs: number = 180_000,
+  nowMs: number = Date.now()
+): void {
+  engineCooldownUntil.set(engineId.toLowerCase(), nowMs + cooldownMs);
+}
+
+export function recordEngineSuccess(engineId: string): void {
+  engineCooldownUntil.delete(engineId.toLowerCase());
+}
