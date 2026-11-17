@@ -1,4 +1,6 @@
 import * as cheerio from 'cheerio';
+import { createHash } from 'node:crypto';
+import { openAlexGet, mapOpenAlexWork, OpenAlexError } from './openalex';
 import {
   parseSearchSyntax,
   filterResultsBySyntax,
@@ -30,6 +32,7 @@ import {
   setCachedSearchResponse,
 } from './server-cache';
 import { evaluateInstantUtility } from './instant-tools';
+import { searchWebEngine, WebEngineError, WEB_ENGINES } from './web-engines';
 import {
   SearchCategory,
   SearchRegion,
@@ -56,7 +59,6 @@ class RateLimitQuotaError extends Error {
 
 function checkQuotaResponse(engineId: string, res: Response): void {
   if (res.status === 429 || res.status === 402) {
-    recordEngineRateLimit(engineId);
     throw new RateLimitQuotaError(engineId);
   }
 }
@@ -217,6 +219,8 @@ export interface RunMetasearchOptions {
   region?: SearchRegion;
   acceptLanguage?: string;
   userConfig?: UserProviderConfig;
+  includeConceptOverview?: boolean;
+  ignoreBangRouting?: boolean;
   onBatch?: (partial: SearchResponse) => void;
 }
 
@@ -249,8 +253,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
   parsedQuery.timeRange = timeRange;
 
   // Allow !bang shortcuts to steer category and/or targeted engines seamlessly
-  const effectiveCategory: SearchCategory = parsedQuery.bang?.category || options.category;
-  const bangEngines = parsedQuery.bang?.engines;
+  const effectiveCategory: SearchCategory = !options.ignoreBangRouting && parsedQuery.bang?.category || options.category;
+  const bangEngines = options.ignoreBangRouting ? undefined : parsedQuery.bang?.engines;
 
   const allowedEngines = bangEngines
     ? new Set(bangEngines.map((e) => e.toLowerCase()))
@@ -285,7 +289,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     region: regionProfile.code,
     timeRange,
     page,
-    engines: options.enginesParam || '',
+    engines: `${options.enginesParam || ''}|concept:${options.includeConceptOverview !== false}`,
   });
   const cached = !hasUserOverrides ? getCachedSearchResponse(cacheKey) : null;
   if (cached) {
@@ -306,12 +310,15 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
   let newsHighlights: SearchResult[] = [];
   let relatedTopics: string[] = [];
 
+  const cooldownKey = (engine: string) => hasUserOverrides
+    ? `${engine}:${createHash('sha256').update(JSON.stringify(userConfig)).digest('hex')}` : engine;
+
   const trackEngine = async (
     engineId: string,
     label: string,
     fn: () => Promise<number>
   ) => {
-    if (isEngineCoolingDown(engineId)) {
+    if (isEngineCoolingDown(cooldownKey(engineId))) {
       engineHealthMap.set(engineId, {
         engine: engineId,
         label,
@@ -325,7 +332,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     const t0 = Date.now();
     try {
       const count = await fn();
-      if (count > 0) recordEngineSuccess(engineId);
+      if (count > 0) recordEngineSuccess(cooldownKey(engineId));
       engineHealthMap.set(engineId, {
         engine: engineId,
         label,
@@ -340,12 +347,13 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         options.onBatch(buildSnapshot(false));
       }
     } catch (err) {
-      const isQuota = err instanceof RateLimitQuotaError;
+      const isQuota = err instanceof RateLimitQuotaError || err instanceof OpenAlexError && [402, 429].includes(err.status);
+      if (isQuota || err instanceof WebEngineError && err.status === 'cooldown') recordEngineRateLimit(cooldownKey(engineId));
       const isTimeout = err instanceof Error && err.name === 'AbortError';
       engineHealthMap.set(engineId, {
         engine: engineId,
         label,
-        status: isQuota ? 'cooldown' : isTimeout ? 'timeout' : 'error',
+        status: err instanceof WebEngineError ? err.status : isQuota ? 'cooldown' : isTimeout ? 'timeout' : 'error',
         count: 0,
         durationMs: Date.now() - t0,
       });
@@ -743,146 +751,27 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     }
   };
 
-  // 3. DuckDuckGo HTML Search
-  const ddgHtmlTask = async () => {
-    if (!isEngineEnabled('duckduckgo')) {
-      engineHealthMap.set('duckduckgo', { engine: 'duckduckgo', label: 'DuckDuckGo', status: 'disabled', count: 0, durationMs: 0 });
+  // Core web engines use the in-process SearXNG-derived adapters.
+  const coreWebTask = async (engine: keyof typeof WEB_ENGINES) => {
+    const label = WEB_ENGINES[engine];
+    if (!isEngineEnabled(engine)) {
+      engineHealthMap.set(engine, { engine, label, status: 'disabled', count: 0, durationMs: 0 });
       return;
     }
-    await trackEngine('duckduckgo', 'DuckDuckGo', async () => {
-      const dfParam =
-        timeRange === 'day'
-          ? '&df=d'
-          : timeRange === 'week'
-          ? '&df=w'
-          : timeRange === 'month'
-          ? '&df=m'
-          : timeRange === 'year'
-          ? '&df=y'
-          : '';
-      const sOffset = page > 1 ? `&s=${(page - 1) * 15}` : '';
-      const klParam = `&kl=${encodeURIComponent(regionProfile.ddgKl)}`;
-      const ddgHtmlUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(effectiveQuery)}${klParam}${dfParam}${sOffset}`;
-      const res = await fetchWithTimeout(
-        ddgHtmlUrl,
-        {
-          headers: {
-            'User-Agent': BROWSER_UA,
-            Accept: 'text/html,application/xhtml+xml',
-            'Accept-Language': `${regionProfile.bingLang},${regionProfile.lang};q=0.9,en;q=0.7`,
-          },
-        },
-        3800
-      );
-
-      if (!res.ok) return 0;
-      const html = await res.text();
-      const $ = cheerio.load(html);
-      let count = 0;
-
-      $('.result.results_links, .web-result').each((_, el) => {
-        if (count >= 12) return false;
-        const linkEl = $(el).find('a.result__a').first();
-        let rawHref = linkEl.attr('href') || '';
-        const title = decodeHtmlEntities(linkEl.text().trim());
-        const snippet = decodeHtmlEntities($(el).find('.result__snippet').first().text().trim());
-
-        if (rawHref.includes('uddg=')) {
-          try {
-            const u = new URL(rawHref.startsWith('//') ? `https:${rawHref}` : rawHref);
-            rawHref = decodeURIComponent(u.searchParams.get('uddg') || rawHref);
-          } catch {
-            // ignore
-          }
-        }
-        if (rawHref.startsWith('//')) rawHref = `https:${rawHref}`;
-
-        if (title && rawHref && rawHref.startsWith('http') && !rawHref.includes('duckduckgo.com/y.js')) {
-          aggregatedResults.push({
-            id: `ddg-${page}-${count}-${Date.now()}`,
-            title,
-            url: rawHref,
-            displayedUrl: getDisplayUrl(rawHref),
-            snippet: snippet || title,
-            engine: 'duckduckgo',
-            category: 'all',
-            rankPosition: count,
-          });
-          count++;
-        }
+    await trackEngine(engine, label, async () => {
+      const query = [
+        parsedQuery.cleanQuery,
+        ...parsedQuery.exactPhrases.map((phrase) => `"${phrase}"`),
+        ...parsedQuery.excludedTerms.map((term) => `-${term}`),
+        parsedQuery.site ? `site:${parsedQuery.site}` : '',
+        parsedQuery.filetype ? `filetype:${parsedQuery.filetype}` : '',
+        parsedQuery.inTitle ? `intitle:"${parsedQuery.inTitle}"` : '',
+      ].filter(Boolean).join(' ');
+      const results = await searchWebEngine(engine, {
+        query, page, region: regionProfile.code, timeRange,
       });
-      return count;
-    });
-  };
-
-  // 4. Bing Web RSS
-  const bingWebTask = async () => {
-    if (!isEngineEnabled('bing')) {
-      engineHealthMap.set('bing', { engine: 'bing', label: 'Bing Web', status: 'disabled', count: 0, durationMs: 0 });
-      return;
-    }
-    await trackEngine('bing', 'Bing Web', async () => {
-      const firstParam = page > 1 ? `&first=${(page - 1) * 10 + 1}` : '';
-      const ccParam =
-        regionProfile.code !== 'global'
-          ? `&cc=${encodeURIComponent(regionProfile.bingCc)}&setlang=${encodeURIComponent(regionProfile.bingLang)}`
-          : '';
-      const rssUrl = `https://www.bing.com/search?q=${encodeURIComponent(effectiveQuery)}&format=rss${ccParam}${firstParam}`;
-      const res = await fetchWithTimeout(
-        rssUrl,
-        {
-          headers: {
-            'User-Agent': BROWSER_UA,
-            Accept: 'application/rss+xml, application/xml, text/xml',
-            'Accept-Language': `${regionProfile.bingLang},${regionProfile.lang};q=0.9,en;q=0.7`,
-          },
-        },
-        3500
-      );
-      if (!res.ok) return 0;
-      const xml = await res.text();
-      const $ = cheerio.load(xml, { xmlMode: true });
-      const candidateItems: SearchResult[] = [];
-
-      $('item').each((_, el) => {
-        if (candidateItems.length >= 10) return false;
-        const title = decodeHtmlEntities($(el).find('title').text().trim());
-        const rawLink = $(el).find('link').text().trim();
-        const snippet = decodeHtmlEntities($(el).find('description').text().trim());
-        const pubDate = $(el).find('pubDate').text().trim();
-        const url = extractBingTargetUrl(rawLink);
-
-        if (title && url && url.startsWith('http')) {
-          candidateItems.push({
-            id: `bing-${page}-${candidateItems.length}-${Date.now()}`,
-            title,
-            url,
-            displayedUrl: getDisplayUrl(url),
-            snippet: snippet || title,
-            engine: 'bing',
-            category: 'all',
-            publishedDate: pubDate ? new Date(pubDate).toLocaleDateString() : undefined,
-            rankPosition: candidateItems.length,
-          });
-        }
-      });
-
-      // Guard against Bing RSS edge cache serving unrelated pages on datacenter IPs
-      const queryTokens = cleanQ
-        .toLowerCase()
-        .split(/\s+/)
-        .map((t) => t.replace(/[^a-z0-9\u00C0-\u024F]/gi, ''))
-        .filter((t) => t.length >= 3);
-      if (queryTokens.length > 0 && candidateItems.length > 0) {
-        const hasAnyRelevantHit = candidateItems.slice(0, 6).some((it) => {
-          const hay = `${it.title} ${it.snippet} ${it.url}`.toLowerCase();
-          return queryTokens.some((tok) => hay.includes(tok));
-        });
-        if (!hasAnyRelevantHit) return 0;
-      }
-
-      aggregatedResults.push(...candidateItems);
-      return candidateItems.length;
+      aggregatedResults.push(...results);
+      return results.length;
     });
   };
 
@@ -1746,17 +1635,10 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
   const academicConceptTask = async () => {
     if (page > 1) return;
     const primaryLang = regionProfile.wikiLang || 'en';
-    const openAlexKeyParam =
-      userConfig.openAlexApiKey || process.env.OPENALEX_API_KEY
-        ? `&api_key=${encodeURIComponent(userConfig.openAlexApiKey || process.env.OPENALEX_API_KEY || '')}`
-        : '';
-
     const [oaTopicRes, wikiRes, sepRes] = await Promise.allSettled([
-      fetchWithTimeout(
-        `https://api.openalex.org/topics?search=${encodeURIComponent(cleanQ)}&per-page=2${openAlexKeyParam}`,
-        { headers: { 'User-Agent': 'Pharol/1.0 (mailto:research@pharol.search)' } },
-        2800
-      ).then((r) => (r.ok ? r.json() : null)),
+      isEngineEnabled('openalex')
+        ? openAlexGet('topics', { search: cleanQ, per_page: '2' }, userConfig.openAlexApiKey, 2800)
+        : Promise.resolve(null),
       (async () => {
         const tryLang = async (lang: string) => {
           const sr = await fetchWithTimeout(
@@ -1869,53 +1751,13 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     if (isEngineEnabled('openalex')) {
       paperTasks.push(
         trackEngine('openalex', 'OpenAlex', async () => {
-          const oaKey = userConfig.openAlexApiKey || process.env.OPENALEX_API_KEY;
-          const dsFilter = parsedQuery.bang?.sectionHint === 'datasets' ? '&filter=type:dataset' : '';
-          const oaUrl = `https://api.openalex.org/works?search=${encodeURIComponent(cleanQ)}&per-page=10&page=${page}${dsFilter}${
-            oaKey ? `&api_key=${encodeURIComponent(oaKey)}` : ''
-          }`;
-          const res = await fetchWithTimeout(
-            oaUrl,
-            { headers: { 'User-Agent': 'Pharol/1.0 (mailto:research@pharol.search)' } },
-            3500
-          );
-          checkQuotaResponse('openalex', res);
-          if (!res.ok) return 0;
-          const data = await res.json();
-          const works = Array.isArray(data.results) ? data.results : [];
-          for (let i = 0; i < works.length; i++) {
-            const w = works[i];
-            const doiUrl = w.doi || w.primary_location?.landing_page_url || w.id;
-            const abstract = reconstructOpenAlexAbstract(w.abstract_inverted_index);
-            const authors = (w.authorships || [])
-              .slice(0, 4)
-              .map((a: any) => a.author?.display_name)
-              .filter(Boolean);
-            const venue = w.primary_location?.source?.display_name;
-            const pdfUrl = w.open_access?.oa_url || w.primary_location?.pdf_url;
-
-            aggregatedResults.push({
-              id: `oa-${w.id || `${page}-${i}`}`,
-              title: decodeHtmlEntities(w.title || 'Scholarly Work'),
-              url: doiUrl,
-              displayedUrl: getDisplayUrl(doiUrl),
-              snippet:
-                abstract ||
-                `${authors.length ? `Authors: ${authors.join(', ')}. ` : ''}${
-                  venue ? `${venue}. ` : ''
-                }Cited by ${w.cited_by_count || 0} works.`,
-              engine: 'openalex',
-              category: 'science',
-              scienceSection: w.type === 'dataset' ? 'datasets' : w.type === 'preprint' ? 'preprints' : 'papers',
-              publishedDate: w.publication_year ? String(w.publication_year) : undefined,
-              authors,
-              doi: w.doi ? w.doi.replace('https://doi.org/', '') : undefined,
-              journal: venue,
-              citations: w.cited_by_count,
-              pdfUrl: pdfUrl || undefined,
-              rankPosition: i,
-            });
-          }
+          const data = await openAlexGet('works', {
+            search: cleanQ, per_page: '10', page: String(page),
+            ...(parsedQuery.bang?.sectionHint === 'datasets' ? { filter: 'type:dataset' } : {}),
+          }, userConfig.openAlexApiKey);
+          if (!Array.isArray(data.results)) throw new Error('Invalid OpenAlex search response');
+          const works = data.results.map((work: any, rank: number) => mapOpenAlexWork(work, rank)).filter(Boolean);
+          aggregatedResults.push(...works);
           return works.length;
         })
       );
@@ -2937,15 +2779,15 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
   } else if (effectiveCategory === 'code') {
     tasks.push(codeTask());
   } else if (effectiveCategory === 'science') {
-    tasks.push(scienceTask(), academicConceptTask());
+    tasks.push(scienceTask());
+    if (options.includeConceptOverview !== false) tasks.push(academicConceptTask());
   } else if (effectiveCategory === 'news') {
     tasks.push(newsTask());
   } else {
     tasks.push(
       wikiTask(),
       ddgInstantTask(),
-      ddgHtmlTask(),
-      bingWebTask(),
+      ...Object.keys(WEB_ENGINES).map((engine) => coreWebTask(engine as keyof typeof WEB_ENGINES)),
       marginaliaTask(),
       exaTask(),
       parallelTask(),

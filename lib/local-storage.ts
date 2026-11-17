@@ -5,7 +5,6 @@ import {
   SavedBookmark,
   ColorTheme,
   NewsAccessFilter,
-  UserProviderConfig,
 } from './search-types';
 
 const HISTORY_KEY = 'searx_local_history';
@@ -202,6 +201,7 @@ export const KEYLESS_DEV_AND_SCIENCE_ENGINES = [
 ];
 
 export const DEFAULT_ACTIVE_ENGINES = [
+  'google',
   'duckduckgo',
   'bing',
   'wikipedia',
@@ -239,14 +239,14 @@ export function getStoredActiveEngines(): string[] {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_ACTIVE_ENGINES;
 
-    // Upgrade existing sessions when new keyless developer/science engines are added
+    // Upgrade existing sessions for Google and the keyless developer/science engines
     const ver = localStorage.getItem(ENGINES_VERSION_KEY);
-    if (ver !== '3') {
+    if (ver !== '4') {
       const merged = Array.from(
-        new Set([...parsed, ...KEYLESS_AI_ENGINES, ...KEYLESS_DEV_AND_SCIENCE_ENGINES])
+        new Set([...parsed, 'google', ...KEYLESS_AI_ENGINES, ...KEYLESS_DEV_AND_SCIENCE_ENGINES])
       );
       localStorage.setItem(ENGINES_KEY, JSON.stringify(merged));
-      localStorage.setItem(ENGINES_VERSION_KEY, '3');
+      localStorage.setItem(ENGINES_VERSION_KEY, '4');
       return merged;
     }
 
@@ -260,7 +260,7 @@ export function setStoredActiveEngines(engines: string[]): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(ENGINES_KEY, JSON.stringify(engines));
-    localStorage.setItem(ENGINES_VERSION_KEY, '3');
+    localStorage.setItem(ENGINES_VERSION_KEY, '4');
   } catch {
     // ignore
   }
@@ -343,33 +343,7 @@ export function setStoredRegion(region: import('./search-types').SearchRegion): 
   }
 }
 
-export function getStoredUserProviderConfig(): UserProviderConfig {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(USER_PROVIDER_CONFIG_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return typeof parsed === 'object' && parsed !== null ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-export function setStoredUserProviderConfig(config: UserProviderConfig): void {
+export function purgeLegacyProviderKeys(): void {
   if (typeof window === 'undefined') return;
-  try {
-    const cleaned: UserProviderConfig = {};
-    for (const [k, v] of Object.entries(config)) {
-      if (typeof v === 'string' && v.trim()) {
-        (cleaned as Record<string, string>)[k] = v.trim();
-      }
-    }
-    if (Object.keys(cleaned).length === 0) {
-      localStorage.removeItem(USER_PROVIDER_CONFIG_KEY);
-    } else {
-      localStorage.setItem(USER_PROVIDER_CONFIG_KEY, JSON.stringify(cleaned));
-    }
-  } catch {
-    // ignore
-  }
+  try { localStorage.removeItem(USER_PROVIDER_CONFIG_KEY); } catch { /* storage disabled */ }
 }

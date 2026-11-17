@@ -14,10 +14,9 @@ import {
   KeyRound,
   Eye,
   EyeOff,
-  AlertTriangle,
 } from 'lucide-react';
 import { clearAllLocalData, clearAllLocalHistory } from '@/lib/local-storage';
-import { ColorTheme, UserProviderConfig } from '@/lib/search-types';
+import { ColorTheme, UserProviderConfig, ProviderKeyStatus } from '@/lib/search-types';
 import { sanitizeTrustedBaseUrl } from '@/lib/search-engine';
 import { SEARX_MCP_TOOLS } from '@/lib/mcp-tools';
 
@@ -32,8 +31,8 @@ interface PrivacyModalProps {
   onDataCleared: () => void;
   colorTheme: ColorTheme;
   onChangeColorTheme: (theme: ColorTheme) => void;
-  userProviderConfig: UserProviderConfig;
-  onUpdateUserProviderConfig: (next: UserProviderConfig) => void;
+  providerKeyStatus: ProviderKeyStatus;
+  onProviderKeysUpdated: (next: ProviderKeyStatus) => void;
 }
 
 interface CapabilitiesPayload {
@@ -43,18 +42,15 @@ interface CapabilitiesPayload {
   searchTemplate: string;
 }
 
-function ProviderKeysForm({
-  initialConfig,
-  onSave,
-}: {
-  initialConfig: UserProviderConfig;
-  onSave: (next: UserProviderConfig) => void;
+function ProviderKeysForm({ configured, onSave }: {
+  configured: ProviderKeyStatus;
+  onSave: (next: ProviderKeyStatus) => void;
 }) {
-  const [draft, setDraft] = useState<UserProviderConfig>(initialConfig);
+  const [draft, setDraft] = useState<UserProviderConfig>({});
   const [showSecrets, setShowSecrets] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [savedMsg, setSavedMsg] = useState<string | null>(null);
-
+  const [busy, setBusy] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [savedMsg, setSavedMsg] = useState('');
   const keyFields: Array<{
     field: keyof Omit<UserProviderConfig, 'openDeepWikiUrl'>;
     label: string;
@@ -82,7 +78,7 @@ function ProviderKeysForm({
     {
       field: 'openAlexApiKey',
       label: 'OpenAlex API Key',
-      hint: 'Optional higher throughput key for OpenAlex works & topics',
+      hint: 'Free key raises the daily allowance 10× · openalex.org/settings/api',
       placeholder: 'OpenAlex key...',
     },
     {
@@ -105,146 +101,72 @@ function ProviderKeysForm({
     },
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-    setSavedMsg(null);
 
-    const rawWiki = draft.openDeepWikiUrl?.trim();
-    if (rawWiki) {
-      const sanitized = sanitizeTrustedBaseUrl(rawWiki);
-      if (!sanitized) {
-        setErrorMsg(
-          'Trusted OpenDeepWiki URL must use https:// (or http://localhost / *.local) with no embedded credentials.'
-        );
-        return;
-      }
-      const next = { ...draft, openDeepWikiUrl: sanitized };
-      setDraft(next);
-      onSave(next);
-    } else {
-      const next = { ...draft, openDeepWikiUrl: undefined };
-      onSave(next);
+  const save = async (patch: Record<string, string | null>, clear = false) => {
+    setBusy(true); setErrorMsg(''); setSavedMsg('');
+    try {
+      const response = await fetch('/api/providers', {
+        method: clear ? 'DELETE' : 'PATCH', headers: { 'Content-Type': 'application/json' },
+        ...(clear ? {} : { body: JSON.stringify(patch) }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to save keys');
+      setDraft({}); onSave(data.configured);
+      setSavedMsg(clear ? 'Saved keys removed.' : Object.values(patch).includes(null)
+        ? 'Saved setting removed.' : 'Saved securely for eight hours. Blank fields keep existing keys.');
+    } catch (error) { setErrorMsg(error instanceof Error ? error.message : 'Unable to save keys'); }
+    finally { setBusy(false); }
+  };
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!window.isSecureContext) { setErrorMsg('Use HTTPS to enter API keys. Localhost is supported for development.'); return; }
+    const patch = Object.fromEntries(Object.entries(draft).filter(([, value]) => value?.trim()));
+    if (patch.openDeepWikiUrl && !sanitizeTrustedBaseUrl(patch.openDeepWikiUrl)) {
+      setErrorMsg('Use a trusted HTTPS endpoint or local HTTP endpoint.'); return;
     }
-    setSavedMsg('Saved strictly in your browser localStorage.');
-    setTimeout(() => setSavedMsg(null), 2600);
+    void save(patch);
   };
-
-  const handleClearKeys = () => {
-    setDraft({});
-    setErrorMsg(null);
-    onSave({});
-    setSavedMsg('Cleared all optional keys and custom hosts.');
-    setTimeout(() => setSavedMsg(null), 2400);
-  };
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="rounded-2xl pharol-glass-inset p-3.5 space-y-1.5">
+      <div className="rounded-2xl pharol-glass-inset p-3.5 space-y-2">
         <div className="flex items-center justify-between gap-2 font-medium text-neutral-900 dark:text-neutral-100">
-          <span className="flex items-center gap-2">
-            <KeyRound className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-300" />
-            <span>BYO Keys &amp; Trusted Self-Hosted Endpoints</span>
-          </span>
-          <button
-            type="button"
-            onClick={() => setShowSecrets(!showSecrets)}
-            className="inline-flex items-center gap-1 rounded-full pharol-glass-chip px-2.5 py-0.5 text-[10px] font-medium text-neutral-700 dark:text-neutral-200"
-          >
-            {showSecrets ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-            <span>{showSecrets ? 'Hide' : 'Reveal'}</span>
+          <span className="flex items-center gap-2"><KeyRound className="h-4 w-4" />Your API keys</span>
+          <button type="button" onClick={() => setShowSecrets(!showSecrets)} aria-label={showSecrets ? 'Hide entered keys' : 'Show entered keys'} className="rounded-full pharol-glass-chip px-3 py-1">
+            {showSecrets ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
-        <p className="leading-relaxed text-[11px] text-neutral-600 dark:text-neutral-300">
-          All search engines work keyless by default. Optional keys stay strictly in browser{' '}
-          <code className="font-mono text-[10px] bg-neutral-900/10 dark:bg-white/10 px-1 py-0.5 rounded">
-            localStorage
-          </code>{' '}
-          and pass per-request via private HTTP headers (never in URLs or server storage).
-        </p>
+        <p className="text-[11px] leading-relaxed">Your keys are encrypted and saved in a protected cookie for eight hours. Saved values cannot be displayed. Pharol uses them to contact the providers you select. Use HTTPS on hosted installations.</p>
+        <p className="text-[11px]">Older keys stored in browser localStorage have been removed. Re-enter them here to save securely.</p>
       </div>
-
-      {/* Trusted Self-Hosted OpenDeepWiki URL */}
-      <div className="rounded-2xl pharol-glass-inset p-3.5 space-y-2 border border-amber-500/20">
-        <label
-          htmlFor="opendeepwiki-url-input"
-          className="block font-semibold text-neutral-900 dark:text-neutral-100"
-        >
-          Self-Hosted OpenDeepWiki Base URL (Optional)
-        </label>
-        <input
-          id="opendeepwiki-url-input"
-          type="url"
-          value={draft.openDeepWikiUrl || ''}
-          onChange={(e) =>
-            setDraft((prev) => ({ ...prev, openDeepWikiUrl: e.target.value }))
-          }
-          placeholder="https://opendeepwiki.internal.example (disabled by default)"
-          className="w-full rounded-full pharol-glass-inset px-3.5 py-2 text-xs font-mono text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-white/40"
-        />
-        <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-          <span>
-            Pharol never sends queries to public third-party OpenDeepWiki mirrors. Leave blank unless you operate your own trusted instance.
-          </span>
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        {keyFields.map((item) => (
-          <div key={item.field} className="rounded-2xl pharol-glass-inset p-3 space-y-1">
-            <label
-              htmlFor={`key-${item.field}`}
-              className="block font-medium text-neutral-900 dark:text-neutral-100"
-            >
-              {item.label}
-            </label>
-            <input
-              id={`key-${item.field}`}
-              type={showSecrets ? 'text' : 'password'}
-              autoComplete="off"
-              value={draft[item.field] || ''}
-              onChange={(e) =>
-                setDraft((prev) => ({ ...prev, [item.field]: e.target.value }))
-              }
-              placeholder={item.placeholder}
-              className="w-full rounded-full pharol-glass-inset px-3 py-1.5 text-xs font-mono text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-white/40"
-            />
-            <div className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-snug">
-              {item.hint}
+      <fieldset disabled={busy} className="space-y-3 disabled:opacity-60">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {keyFields.map((item) => (
+            <div key={item.field} className="rounded-2xl pharol-glass-inset p-3 space-y-2">
+              <label htmlFor={`key-${item.field}`} className="block font-medium text-neutral-900 dark:text-neutral-100">{item.label}</label>
+              <input id={`key-${item.field}`} type={showSecrets ? 'text' : 'password'} autoComplete="off" spellCheck={false} autoCapitalize="none" maxLength={512}
+                value={draft[item.field] || ''} onChange={(event) => setDraft((previous) => ({ ...previous, [item.field]: event.target.value }))}
+                placeholder={configured[item.field] ? 'Saved · enter a replacement' : item.placeholder}
+                className="w-full rounded-full pharol-glass-inset px-3 py-2 text-xs font-mono text-neutral-900 dark:text-neutral-100" />
+              <p className="text-[10px] text-neutral-500 dark:text-neutral-400">{item.hint}</p>
+              {item.field === 'openAlexApiKey' && <a href="https://openalex.org/settings/api" target="_blank" rel="noreferrer" className="inline-block text-[11px] underline">Get a free OpenAlex key</a>}
+              {configured[item.field] && <button type="button" onClick={() => void save({ [item.field]: null })} className="text-[11px] underline">Remove saved key</button>}
             </div>
-          </div>
-        ))}
-      </div>
-
-      {errorMsg && (
-        <div className="rounded-2xl pharol-glass-inset border border-amber-500/40 p-2.5 text-[11px] text-amber-700 dark:text-amber-300">
-          {errorMsg}
+          ))}
         </div>
-      )}
-
-      {savedMsg && (
-        <div className="flex items-center gap-1.5 rounded-2xl pharol-glass-inset p-2.5 text-xs font-medium text-neutral-900 dark:text-neutral-100">
-          <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-          <span>{savedMsg}</span>
+        <div className="rounded-2xl pharol-glass-inset p-3 space-y-2">
+          <label htmlFor="opendeepwiki-url-input" className="block font-medium">Trusted OpenDeepWiki endpoint</label>
+          <input id="opendeepwiki-url-input" type="url" maxLength={512} value={draft.openDeepWikiUrl || ''} onChange={(event) => setDraft((previous) => ({ ...previous, openDeepWikiUrl: event.target.value }))}
+            placeholder={configured.openDeepWikiUrl ? 'Saved · enter a replacement' : 'https://your-trusted-instance.example'} className="w-full rounded-full pharol-glass-inset px-3 py-2 text-xs" />
+          <p className="text-[10px]">Configure only an instance you operate or trust.</p>
+          {configured.openDeepWikiUrl && <button type="button" onClick={() => void save({ openDeepWikiUrl: null })} className="text-[11px] underline">Remove endpoint</button>}
         </div>
-      )}
-
-      <div className="flex items-center gap-2 pt-1">
-        <button
-          type="submit"
-          className="flex-1 rounded-full pharol-liquid-btn py-2 text-xs font-medium"
-        >
-          Save Local Keys &amp; Hosts
-        </button>
-        <button
-          type="button"
-          onClick={handleClearKeys}
-          className="rounded-full pharol-glass-chip px-4 py-2 text-xs font-medium text-neutral-700 dark:text-neutral-200"
-        >
-          Clear All
-        </button>
-      </div>
+        <div className="flex gap-2">
+          <button type="submit" className="flex-1 rounded-full pharol-liquid-btn py-2 text-xs font-medium">{busy ? 'Saving…' : 'Save securely'}</button>
+          <button type="button" onClick={() => void save({}, true)} className="rounded-full pharol-glass-chip px-4 py-2 text-xs">Remove all keys</button>
+        </div>
+      </fieldset>
+      {errorMsg && <p role="alert" className="rounded-xl border border-amber-500/40 p-3 text-amber-700 dark:text-amber-300">{errorMsg}</p>}
+      {savedMsg && <p role="status" className="rounded-xl pharol-glass-inset p-3">{savedMsg}</p>}
     </form>
   );
 }
@@ -258,8 +180,8 @@ export function PrivacyModal({
   onDataCleared,
   colorTheme,
   onChangeColorTheme,
-  userProviderConfig,
-  onUpdateUserProviderConfig,
+  providerKeyStatus,
+  onProviderKeysUpdated,
 }: PrivacyModalProps) {
   const [tabOverride, setTabOverride] = useState<{
     forInitial: ModalTab;
@@ -281,6 +203,9 @@ export function PrivacyModal({
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
+    fetch('/api/providers', { cache: 'no-store' }).then((res) => res.json()).then((data) => {
+      if (active && data.configured) onProviderKeysUpdated(data.configured);
+    }).catch(() => {});
     fetch('/api/capabilities')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -292,7 +217,7 @@ export function PrivacyModal({
     return () => {
       active = false;
     };
-  }, [isOpen]);
+  }, [isOpen, onProviderKeysUpdated]);
 
   if (!isOpen) return null;
 
@@ -317,7 +242,10 @@ export function PrivacyModal({
     setTimeout(() => setClearedMsg(null), 2500);
   };
 
-  const handlePurgeAll = () => {
+  const handlePurgeAll = async () => {
+    const response = await fetch('/api/providers', { method: 'DELETE' });
+    if (!response.ok) { setClearedMsg('Unable to remove saved keys; try again.'); return; }
+    onProviderKeysUpdated({});
     clearAllLocalData();
     onDataCleared();
     setClearedMsg('All browser data purged completely.');
@@ -382,8 +310,8 @@ export function PrivacyModal({
     { id: 'tinyfish', label: 'TinyFish', varName: 'TINYFISH_API_KEY' },
   ];
 
-  const configuredKeysCount = Object.values(userProviderConfig).filter(
-    (v) => typeof v === 'string' && v.trim().length > 0
+  const configuredKeysCount = Object.values(providerKeyStatus).filter(
+    (v) => v === true
   ).length;
 
   return (
@@ -466,7 +394,7 @@ export function PrivacyModal({
                   <span>Stateless Zero-Telemetry Search</span>
                 </div>
                 <p className="leading-relaxed text-neutral-600 dark:text-neutral-300">
-                  No remote accounts, cookies, or tracking identifiers. History, bookmarks, and optional provider keys stay strictly inside your browser&apos;s{' '}
+                  History and bookmarks stay in your browser. Optional provider keys use an encrypted, HttpOnly cookie and expire after eight hours. History and bookmarks use{' '}
                   <code className="font-mono text-[11px] bg-neutral-900/10 dark:bg-white/10 px-1.5 py-0.5 rounded">
                     localStorage
                   </code>
@@ -544,9 +472,8 @@ export function PrivacyModal({
             </>
           ) : activeTab === 'keys' ? (
             <ProviderKeysForm
-              key={JSON.stringify(userProviderConfig)}
-              initialConfig={userProviderConfig}
-              onSave={onUpdateUserProviderConfig}
+              configured={providerKeyStatus}
+              onSave={onProviderKeysUpdated}
             />
           ) : (
             <>
@@ -702,7 +629,7 @@ export function PrivacyModal({
                   Upstream Rate-Limit Mode (Server Env)
                 </div>
                 <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-                  All providers run keyless by default (except CORE v3). Add browser-local keys in the{' '}
+                  All providers run keyless by default (except CORE v3). Add your own keys in the{' '}
                   <button
                     type="button"
                     onClick={() => setActiveTab('keys')}

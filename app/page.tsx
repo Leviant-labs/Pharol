@@ -23,7 +23,7 @@ import {
   TimeRange,
   NewsAccessFilter,
   SearchRegion,
-  UserProviderConfig,
+  ProviderKeyStatus,
 } from '@/lib/search-types';
 import {
   getLocalHistory,
@@ -46,10 +46,8 @@ import {
   setStoredNewsAccessFilter,
   getStoredRegion,
   setStoredRegion,
-  getStoredUserProviderConfig,
-  setStoredUserProviderConfig,
+  purgeLegacyProviderKeys,
 } from '@/lib/local-storage';
-import { buildUserProviderHeaders } from '@/lib/user-provider-headers';
 
 export default function HomePage() {
   const [query, setQuery] = useState('');
@@ -89,7 +87,7 @@ export default function HomePage() {
   // Privacy & Local Storage state
   const [history, setHistory] = useState<LocalHistoryItem[]>([]);
   const [bookmarks, setBookmarks] = useState<SavedBookmark[]>([]);
-  const [userProviderConfig, setUserProviderConfig] = useState<UserProviderConfig>({});
+  const [providerKeyStatus, setProviderKeyStatus] = useState<ProviderKeyStatus>({});
   const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
   const [modalInitialTab, setModalInitialTab] = useState<'privacy' | 'keys' | 'mcp'>('privacy');
 
@@ -112,10 +110,9 @@ export default function HomePage() {
     });
   };
 
-  const handleUpdateUserProviderConfig = (next: UserProviderConfig) => {
-    setUserProviderConfig(next);
-    setStoredUserProviderConfig(next);
-  };
+  const handleProviderKeysUpdated = useCallback((next: ProviderKeyStatus) => {
+    setProviderKeyStatus(next);
+  }, []);
 
   const fetchUnifiedAnswer = useCallback(
     async (searchData: SearchResponse, preserveExisting = false) => {
@@ -226,14 +223,12 @@ export default function HomePage() {
             ? `&engines=${encodeURIComponent(effectiveEngines.join(','))}`
             : '';
 
-        const providerHeaders = buildUserProviderHeaders(getStoredUserProviderConfig());
         const streamUrl = `/api/search/stream?q=${encodeURIComponent(
           trimmed
         )}&category=${effectiveCategory}&page=1&timeRange=${effectiveTimeRange}${enginesQuery}${regionParams}`;
 
         const res = await fetch(streamUrl, {
           signal: controller.signal,
-          headers: providerHeaders,
         });
         if (!res.ok || !res.body) {
           throw new Error('Streaming unavailable');
@@ -342,12 +337,11 @@ export default function HomePage() {
                 : '';
             const browserLangFallback =
               typeof navigator !== 'undefined' ? navigator.language || '' : '';
-            const providerHeaders = buildUserProviderHeaders(getStoredUserProviderConfig());
             const fallbackRes = await fetch(
               `/api/search?q=${encodeURIComponent(
                 trimmed
               )}&category=${effectiveCategory}&page=1&timeRange=${effectiveTimeRange}${enginesQuery}&region=${encodeURIComponent(effectiveRegion)}&lang=${encodeURIComponent(browserLangFallback)}`,
-              { signal: controller.signal, headers: providerHeaders }
+              { signal: controller.signal }
             );
             if (fallbackRes.ok && reqId === searchReqIdRef.current) {
               const data: SearchResponse = await fallbackRes.json();
@@ -389,12 +383,11 @@ export default function HomePage() {
           ? `&engines=${encodeURIComponent(activeEngines.join(','))}`
           : '';
       const browserLang = typeof navigator !== 'undefined' ? navigator.language || '' : '';
-      const providerHeaders = buildUserProviderHeaders(getStoredUserProviderConfig());
       const res = await fetch(
         `/api/search?q=${encodeURIComponent(
           activeQuery
         )}&category=${category}&page=${nextPage}&timeRange=${timeRange}${enginesQuery}&region=${encodeURIComponent(region)}&lang=${encodeURIComponent(browserLang)}`,
-        { headers: providerHeaders }
+        { cache: 'no-store' }
       );
       if (res.ok) {
         const data: SearchResponse = await res.json();
@@ -488,7 +481,8 @@ export default function HomePage() {
       setTimeRange(storedRange);
       setRegion(storedRegion);
       setNewsAccessFilter(storedNewsAccess);
-      setUserProviderConfig(getStoredUserProviderConfig());
+      purgeLegacyProviderKeys();
+      fetch('/api/providers', { cache: 'no-store' }).then((r) => r.json()).then((data) => setProviderKeyStatus(data.configured || {})).catch(() => {});
 
       const params = new URLSearchParams(window.location.search);
       const urlQ = params.get('q');
@@ -586,7 +580,7 @@ export default function HomePage() {
   const refreshLocalData = () => {
     setHistory(getLocalHistory());
     setBookmarks(getSavedBookmarks());
-    setUserProviderConfig(getStoredUserProviderConfig());
+    setProviderKeyStatus({});
   };
 
   const getColorThemeContainerClass = () => {
@@ -811,8 +805,8 @@ export default function HomePage() {
         onDataCleared={refreshLocalData}
         colorTheme={colorTheme}
         onChangeColorTheme={handleChangeColorTheme}
-        userProviderConfig={userProviderConfig}
-        onUpdateUserProviderConfig={handleUpdateUserProviderConfig}
+        providerKeyStatus={providerKeyStatus}
+        onProviderKeysUpdated={handleProviderKeysUpdated}
       />
 
       <footer className="border-t border-neutral-900/10 dark:border-white/15 pharol-glass py-5 text-xs text-neutral-600 dark:text-neutral-300 mt-auto">

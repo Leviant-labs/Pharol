@@ -31,6 +31,8 @@ export interface UserProviderConfig {
   openDeepWikiUrl?: string;
 }
 
+export type ProviderKeyStatus = Partial<Record<keyof UserProviderConfig, boolean>>;
+
 export interface BangDefinition {
   bang: string;
   label: string;

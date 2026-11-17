@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { runMetasearch } from '@/lib/server-search';
 import { SearchCategory, SearchRegion, TimeRange } from '@/lib/search-types';
-import { extractUserProviderConfig } from '@/lib/user-provider-headers';
+import { requestProviders } from '@/lib/provider-credentials';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const timeRange = (searchParams.get('timeRange') as TimeRange) || 'all';
   const region = (searchParams.get('region') as SearchRegion) || 'auto';
   const acceptLanguage = searchParams.get('lang') || req.headers.get('accept-language') || undefined;
-  const userConfig = extractUserProviderConfig(req.headers);
+  const userConfig = requestProviders(req);
 
   const encoder = new TextEncoder();
 
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-transform',
+      'Cache-Control': 'private, no-store, no-transform',
       Connection: 'keep-alive',
     },
   });

@@ -8,11 +8,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --import tsx --test lib/search-engine.test.ts lib/mcp-tools.test.ts",
+    "test": "node --import tsx --test lib/search-engine.test.ts lib/mcp-tools.test.ts lib/web-engines.test.ts lib/browser-transport.test.ts lib/provider-credentials.test.ts lib/paper-tools.test.ts",
     "clean": "rm -rf .next"
   },
   "engines": {
-    "node": ">=18.18"
+    "node": ">=20"
   },
   "dependencies": {
     "@google/genai": "^3.3.0",
@@ -21,6 +21,7 @@
     "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "impit": "0.14.9",
     "lucide-react": "^0.553.0",
     "motion": "^12.23.24",
     "next": "^15.4.9",

@@ -141,6 +141,36 @@ export const SEARX_MCP_TOOLS: McpToolDefinition[] = [
   },
 ];
 
+const identifier = { type: 'string', description: 'Exact DOI or OpenAlex work ID/URL. Titles are not accepted.' };
+const paperAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true };
+SEARX_MCP_TOOLS.push(
+  {
+    name: 'search_papers', title: 'Paper Search',
+    description: 'Search and deduplicate scholarly papers through in-process academic adapters. Fast searches OpenAlex, Crossref, arXiv, PubMed and Europe PMC; fastest uses OpenAlex/Crossref. Includes source failure status. Uses your saved API keys.',
+    inputSchema: { type: 'object', properties: {
+      query: { type: 'string', minLength: 1, maxLength: 1000 },
+      sources: { oneOf: [{ type: 'string', enum: ['fast', 'fastest', 'all'] }, { type: 'array', minItems: 1, items: { type: 'string', enum: ['openalex', 'crossref', 'arxiv', 'pubmed', 'europepmc', 'semanticscholar', 'openaire', 'hal', 'datacite', 'inspire', 'core'] } }] },
+      max_results: { type: 'integer', minimum: 1, maximum: 50, default: 10 },
+      page: { type: 'integer', minimum: 1, maximum: 5, default: 1 },
+    }, required: ['query'] }, annotations: paperAnnotations,
+  },
+  ...[
+    ['get_paper', 'Paper Metadata & Open Access', 'Resolve a DOI/OpenAlex ID to metadata, references and separately identified open-access landing pages and PDF URLs.'],
+    ['get_paper_fulltext', 'Open Repository Paper Text', 'Retrieve open-access full text from indexed PMC or modern arXiv HTML locations, bounded to 4 MB and 50,000 output characters. Reports unavailable text explicitly and preserves indexed OA links.'],
+  ].map(([name, title, description]): McpToolDefinition => ({ name, title, description,
+    inputSchema: { type: 'object', properties: { identifier }, required: ['identifier'] }, annotations: paperAnnotations })),
+  ...[
+    ['get_citing_papers', 'Citing Papers', 'List papers citing a DOI/OpenAlex work, ordered by citation count. One graph hop, bounded pages and explicit truncation.'],
+    ['get_referenced_papers', 'Referenced Papers', 'List papers referenced by a DOI/OpenAlex work, ordered by citation count. One graph hop, bounded pages and explicit truncation.'],
+  ].map(([name, title, description]): McpToolDefinition => ({ name, title, description,
+    inputSchema: { type: 'object', properties: { identifier,
+      max_results: { type: 'integer', minimum: 1, maximum: 100, default: 10 },
+      max_pages: { type: 'integer', minimum: 1, maximum: 5, default: 3 },
+    }, required: ['identifier'] }, annotations: paperAnnotations })),
+  { name: 'openalex_status', title: 'OpenAlex Usage Status', description: 'Show OpenAlex quota and whether a key is configured, without revealing credentials.',
+    inputSchema: { type: 'object', properties: {} }, annotations: paperAnnotations },
+);
+
 export function buildJsonRpcSuccess(id: string | number | null, result: unknown) {
   return {
     jsonrpc: '2.0' as const,

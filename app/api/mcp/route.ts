@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runMetasearch } from '@/lib/server-search';
+import { requestProviders } from '@/lib/provider-credentials';
+import { runPaperTool, PAPER_TOOL_NAMES } from '@/lib/paper-tools';
 import { NewsAccessFilter, SearchCategory, SearchRegion, TimeRange } from '@/lib/search-types';
 import {
   SEARX_MCP_SERVER_INFO,
@@ -13,6 +15,8 @@ import { GET as suggestGET } from '../suggest/route';
 import { GET as weatherGET } from '../weather/route';
 
 const CORS_HEADERS = {
+  'Cache-Control': 'private, no-store',
+  Vary: 'Cookie, Origin',
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, Mcp-Session-Id, MCP-Protocol-Version',
@@ -92,6 +96,13 @@ export async function POST(req: NextRequest) {
     const args: Record<string, any> = params?.arguments || {};
 
     try {
+      const userConfig = requestProviders(req);
+      if (toolName && PAPER_TOOL_NAMES.includes(toolName)) {
+        const data = await runPaperTool(toolName, args, userConfig);
+        return NextResponse.json(buildJsonRpcSuccess(id, {
+          content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+        }), { headers: CORS_HEADERS });
+      }
       if (toolName === 'web_search') {
         const query = String(args.query || '').trim();
         if (!query) {
@@ -115,6 +126,7 @@ export async function POST(req: NextRequest) {
           page,
           region,
           acceptLanguage,
+          userConfig,
         });
 
         return NextResponse.json(
@@ -162,6 +174,8 @@ export async function POST(req: NextRequest) {
           rawQuery: query,
           category: 'science',
           page,
+          userConfig,
+          ignoreBangRouting: true,
         });
 
         return NextResponse.json(

@@ -12,7 +12,7 @@ test('SEARX_MCP_SERVER_INFO defines valid MCP server metadata', () => {
   assert.ok(SEARX_MCP_SERVER_INFO.version.length > 0);
 });
 
-test('SEARX_MCP_TOOLS exposes all 6 core tools with valid JSON Schema objects', () => {
+test('SEARX_MCP_TOOLS exposes core and paper tools with valid JSON Schema objects', () => {
   const names = SEARX_MCP_TOOLS.map((t) => t.name);
   assert.deepEqual(names, [
     'web_search',
@@ -21,11 +21,17 @@ test('SEARX_MCP_TOOLS exposes all 6 core tools with valid JSON Schema objects', 
     'read_webpage',
     'suggest_queries',
     'get_weather',
+    'search_papers',
+    'get_paper',
+    'get_paper_fulltext',
+    'get_citing_papers',
+    'get_referenced_papers',
+    'openalex_status',
   ]);
 
   for (const tool of SEARX_MCP_TOOLS) {
     assert.equal(tool.inputSchema.type, 'object');
-    assert.ok(Object.keys(tool.inputSchema.properties).length > 0);
+    assert.equal(typeof tool.inputSchema.properties, 'object');
     assert.equal(tool.annotations?.readOnlyHint, true);
     assert.equal(tool.annotations?.destructiveHint, false);
   }

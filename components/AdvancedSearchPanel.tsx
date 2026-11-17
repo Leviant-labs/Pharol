@@ -94,6 +94,7 @@ export function AdvancedSearchPanel({
   };
 
   const coreEngines = [
+    { id: 'google', label: 'Google' },
     { id: 'duckduckgo', label: 'DuckDuckGo' },
     { id: 'bing', label: 'Bing Web' },
     { id: 'wikipedia', label: 'Wikipedia' },
