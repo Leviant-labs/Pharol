@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "node --import tsx --test lib/search-engine.test.ts lib/mcp-tools.test.ts",
-    "clean": "next clean"
+    "clean": "rm -rf .next"
   },
   "engines": {
     "node": ">=18.18"

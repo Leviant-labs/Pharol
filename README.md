@@ -60,6 +60,30 @@ Search responses are cached in process memory (3 min, 100 entries) and that
 cache is bypassed entirely when the caller supplies their own API keys, so
 key-scoped results are never served to another caller.
 
+## AI answers (optional)
+
+`/api/answer` is **prompt-grounded, not tool-grounded**: the browser posts the
+top 8 results it already retrieved, the server assigns them citation slots
+`[1]…[n]`, enriches the top two non-Wikipedia URLs with `r.jina.ai` inside a
+1.4 s budget, and asks the model to return JSON
+`{ summary, keyPoints, citedIndices }` constrained by `responseSchema`. Gemini's
+own search/grounding tool is never called, so "grounded" here means *constrained
+to the supplied snippets and excerpts*, not *verified against Google*.
+
+```ts
+model: 'gemini-4-hydrogen'                 // hardcoded, no env override
+thinkingConfig: { thinkingLevel: LOW }
+responseMimeType: 'application/json'       // schema-enforced
+```
+
+- With no `GEMINI_API_KEY`, answers degrade to a deterministic
+  `instant-synthesis` path: lead sentence from the top snippet plus up to three
+  cited key points, assembled in code. The UI labels which one it got.
+- Answers are fetched automatically after every search that returns results,
+  and again on follow-up questions (last 4 turns of history are included in the
+  prompt).
+- Follow-ups reuse the same model and a `{ answer, citedIndices }` schema.
+
 ## Running it
 
 Requires Node 18.18+ (Node 20 or 22 recommended).
@@ -127,8 +151,9 @@ tool schema.
   caller-supplied URL. Before exposing this deployment publicly, add a host
   allowlist / private-range block to `app/api/reader/route.ts` and put auth or
   rate limiting in front of `/api/mcp`.
-- **`/api/answer` sends the query and page excerpts to Gemini** when a key is
-  configured. Search itself does not require it.
+- **`/api/answer` sends the query, snippets and page excerpts to Gemini** when a
+  key is configured, and fetches the top two result URLs through `r.jina.ai`
+  first. Search itself does not require it.
 - The in-memory result cache is per-process; multiple instances do not share it.
 
 ## License
