@@ -32,7 +32,23 @@ test('provider validation rejects unknown fields, oversized keys and header inje
   for (const patch of [{ unknown: 'value' }, { openAlexApiKey: 'x'.repeat(513) }, { openAlexApiKey: 'token\r\nInjected: true' }, { openAlexApiKey: 'Bearer token' }]) {
     assert.throws(() => patchProviders({}, patch));
   }
+  assert.throws(() => patchProviders({}, { bogusKey: 'value' }), /Unknown provider setting: bogusKey/);
+  assert.throws(() => patchProviders({}, { tavilyApiKey: 'tvly key' }), /Invalid value for tavilyApiKey/);
   assert.deepEqual(patchProviders({ openAlexApiKey: 'old', coreApiKey: 'keep' }, { openAlexApiKey: null }), { coreApiKey: 'keep' });
+});
+
+test('every remaining keyless provider accepts a saved user key', () => {
+  const saved = patchProviders({}, {
+    tavilyApiKey: 'tvly-1', parallelApiKey: 'parallel-1',
+    keenableApiKey: 'keenable-1', tinyfishApiKey: 'tinyfish-1',
+  });
+  assert.deepEqual(saved, {
+    tavilyApiKey: 'tvly-1', parallelApiKey: 'parallel-1',
+    keenableApiKey: 'keenable-1', tinyfishApiKey: 'tinyfish-1',
+  });
+  assert.deepEqual(patchProviders(saved, { tinyfishApiKey: null }), {
+    tavilyApiKey: 'tvly-1', parallelApiKey: 'parallel-1', keenableApiKey: 'keenable-1',
+  });
 });
 
 test('settings return boolean status only and set HttpOnly/SameSite cookies; removal clears them', async () => {
@@ -74,6 +90,18 @@ test('standalone bind addresses use the destination Host for origin checks', asy
     body: JSON.stringify({ openAlexApiKey: 'test-only-key' }),
   });
   assert.equal((await PATCH(req)).status, 200);
+});
+
+test('settings name the rejected field instead of a generic error', async () => {
+  const response = await PATCH(request('PATCH', { notAKey: 'value' }));
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /Unknown provider setting: notAKey/);
+  const malformed = await PATCH(new NextRequest(`${origin}/api/providers`, {
+    method: 'PATCH', headers: { Origin: origin, 'Content-Type': 'application/json' },
+    body: 'openAlexApiKey=plain-secret',
+  }));
+  assert.equal(malformed.status, 400);
+  assert.ok(!(await malformed.text()).includes('plain-secret'));
 });
 
 test('settings reject oversized bodies, missing origins, and hosted plaintext HTTP', async () => {

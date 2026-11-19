@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { extractUserProviderConfig, USER_PROVIDER_HEADER_MAP } from './user-provider-headers';
 import { sanitizeTrustedBaseUrl } from './search-engine';
+import { readOperatorProviders, type ProviderContext } from './provider-config';
 import type { UserProviderConfig } from './search-types';
 
 export const PROVIDER_COOKIE = process.env.NODE_ENV === 'production' ? '__Host-pharol-providers' : 'pharol-providers';
@@ -20,15 +21,15 @@ export function patchProviders(current: UserProviderConfig, patch: unknown): Use
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Expected a provider settings object');
   const next = { ...current };
   for (const [field, value] of Object.entries(patch)) {
-    if (!USER_PROVIDER_HEADER_MAP.some(([name]) => name === field)) throw new Error('Unknown provider setting');
+    if (!USER_PROVIDER_HEADER_MAP.some(([name]) => name === field)) throw new Error(`Unknown provider setting: ${field}`);
     const name = field as keyof UserProviderConfig;
     if (value === null) { delete next[name]; continue; }
     if (typeof value !== 'string' || !/^[\x21-\x7e]{1,512}$/.test(value.trim())) {
-      throw new Error('Keys must contain 1–512 printable characters without spaces');
+      throw new Error(`Invalid value for ${field}: keys must contain 1–512 printable characters without spaces`);
     }
     if (name === 'openDeepWikiUrl') {
       const url = sanitizeTrustedBaseUrl(value.trim());
-      if (!url) throw new Error('The custom endpoint must be a trusted HTTPS URL or local HTTP endpoint');
+      if (!url) throw new Error(`${field} must be a trusted HTTPS URL or local HTTP endpoint`);
       next[name] = url;
     } else next[name] = value.trim();
   }
@@ -85,4 +86,8 @@ export function requestProviders(req: Request): UserProviderConfig {
   // can supply their own explicit provider headers without receiving browser keys.
   const cookieConfig = sameOrigin(req) ? openProviders(value) : {};
   return { ...cookieConfig, ...extractUserProviderConfig(req.headers) };
+}
+
+export function requestProviderContext(req: Request): ProviderContext {
+  return { userConfig: requestProviders(req), providerDefaults: readOperatorProviders(process.env) };
 }

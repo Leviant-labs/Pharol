@@ -12,7 +12,7 @@ const pending = new Map<string, Promise<any>>();
 
 export async function openAlexGet(path: string, params: Record<string, string> = {}, apiKey?: string, timeoutMs = 3500): Promise<any> {
   if (!/^(works(?:\/[^?#]+)?|topics|rate-limit)$/.test(path)) throw new Error('Unsupported OpenAlex endpoint');
-  const key = apiKey?.trim() || process.env.OPENALEX_API_KEY?.trim() || '';
+  const key = apiKey?.trim() || '';
   const scope = createHash('sha256').update(key).digest('hex');
   const url = new URL(`https://api.openalex.org/${path}`);
   url.search = new URLSearchParams(params).toString();

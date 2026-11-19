@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { createHash } from 'node:crypto';
+import { resolveProviderConfig, type ProviderContext } from './provider-config';
 import { openAlexGet, mapOpenAlexWork, OpenAlexError } from './openalex';
 import {
   parseSearchSyntax,
@@ -44,7 +45,6 @@ import {
   SearchResponse,
   EngineHealth,
   TimeRange,
-  UserProviderConfig,
 } from './search-types';
 
 const BROWSER_UA =
@@ -210,7 +210,7 @@ async function callSessionMcpTool(
   return { text: parseMcpJsonRpcPayload(raw), sessionId };
 }
 
-export interface RunMetasearchOptions {
+export interface RunMetasearchOptions extends ProviderContext {
   rawQuery: string;
   category: SearchCategory;
   enginesParam?: string | null;
@@ -218,7 +218,6 @@ export interface RunMetasearchOptions {
   timeRange?: TimeRange;
   region?: SearchRegion;
   acceptLanguage?: string;
-  userConfig?: UserProviderConfig;
   includeConceptOverview?: boolean;
   ignoreBangRouting?: boolean;
   onBatch?: (partial: SearchResponse) => void;
@@ -229,10 +228,22 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
   const rawQuery = options.rawQuery.trim();
   const page = Math.max(1, Math.min(10, options.page || 1));
   const timeRange: TimeRange = options.timeRange || 'all';
-  const userConfig = options.userConfig || {};
-  const hasUserOverrides = Object.values(userConfig).some(
-    (v) => typeof v === 'string' && v.trim().length > 0
-  );
+  const hasUserOverrides = Object.keys(resolveProviderConfig({ userConfig: options.userConfig })).length > 0;
+  const providers = resolveProviderConfig(options);
+  const providerScope = Object.keys(providers).length
+    ? createHash('sha256').update(JSON.stringify(providers)).digest('hex') : '';
+  const {
+    tavilyApiKey: tavilyKey,
+    parallelApiKey: parallelKey,
+    keenableApiKey: keenableKey,
+    tinyfishApiKey: tinyfishKey,
+    exaApiKey: exaKey,
+    firecrawlApiKey: firecrawlKey,
+    context7ApiKey: c7Key,
+    semanticScholarApiKey: s2Key,
+    coreApiKey: coreKey,
+    githubToken: ghToken,
+  } = providers;
 
   if (!rawQuery) {
     return {
@@ -290,6 +301,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     timeRange,
     page,
     engines: `${options.enginesParam || ''}|concept:${options.includeConceptOverview !== false}`,
+    providerScope,
   });
   const cached = !hasUserOverrides ? getCachedSearchResponse(cacheKey) : null;
   if (cached) {
@@ -310,8 +322,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
   let newsHighlights: SearchResult[] = [];
   let relatedTopics: string[] = [];
 
-  const cooldownKey = (engine: string) => hasUserOverrides
-    ? `${engine}:${createHash('sha256').update(JSON.stringify(userConfig)).digest('hex')}` : engine;
+  const cooldownKey = (engine: string) => providerScope ? `${engine}:${providerScope}` : engine;
 
   const trackEngine = async (
     engineId: string,
@@ -887,8 +898,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  ...(process.env.FIRECRAWL_API_KEY
-                    ? { Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY}` }
+                  ...(firecrawlKey
+                    ? { Authorization: `Bearer ${firecrawlKey}` }
                     : {}),
                 },
                 body: JSON.stringify(fcBody),
@@ -931,8 +942,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  ...(process.env.TAVILY_API_KEY
-                    ? { Authorization: `Bearer ${process.env.TAVILY_API_KEY}` }
+                  ...(tavilyKey
+                    ? { Authorization: `Bearer ${tavilyKey}` }
                     : { 'X-Tavily-Access-Mode': 'keyless' }),
                 },
                 body: JSON.stringify({ query: cleanQ, topic: 'news', days: 7, max_results: 8 }),
@@ -980,8 +991,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
             const inner = await callMcpSearchTool(
               'tinyfish-news',
               'https://agent.tinyfish.ai/mcp',
-              process.env.TINYFISH_API_KEY
-                ? { 'X-API-Key': process.env.TINYFISH_API_KEY }
+              tinyfishKey
+                ? { 'X-API-Key': tinyfishKey }
                 : { 'X-TinyFish-Access-Mode': 'keyless' },
               'search',
               tfArgs,
@@ -1018,8 +1029,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
 
   // 7. Code & Developer Sources (GitHub, DeepWiki, Google Code Wiki, Exa Code, Context7, GitMCP, MDN, Firecrawl Dev, Packages, Stack Overflow, Hacker News)
   const codeTask = async () => {
-    const trustedOpenDeepWiki = sanitizeTrustedBaseUrl(userConfig.openDeepWikiUrl);
-    const ghToken = userConfig.githubToken || process.env.GITHUB_TOKEN;
+    const trustedOpenDeepWiki = sanitizeTrustedBaseUrl(providers.openDeepWikiUrl);
     const ghHeaders: Record<string, string> = {
       'User-Agent': 'Pharol-Metasearch/1.0',
       ...(ghToken ? { Authorization: `Bearer ${ghToken}` } : {}),
@@ -1132,7 +1142,6 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     if (isEngineEnabled('exa-code')) {
       subTasks.push(
         trackEngine('exa-code', 'Exa Code Context', async () => {
-          const exaKey = userConfig.exaApiKey || process.env.EXA_API_KEY;
           const text = await callMcpSearchTool(
             'exa-code',
             'https://mcp.exa.ai/mcp?tools=web_search_exa,get_code_context_exa',
@@ -1168,7 +1177,6 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     if (isEngineEnabled('context7') && page === 1) {
       subTasks.push(
         trackEngine('context7', 'Context7 Docs', async () => {
-          const c7Key = userConfig.context7ApiKey || process.env.CONTEXT7_API_KEY;
           const c7Headers: Record<string, string> = c7Key ? { Authorization: `Bearer ${c7Key}` } : {};
           const libTerm = cleanQ.split(/\s+/).slice(0, 2).join(' ');
           const resolveText = await callMcpSearchTool(
@@ -1247,14 +1255,13 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     if (isEngineEnabled('firecrawl-dev') && page === 1) {
       subTasks.push(
         trackEngine('firecrawl-dev', 'Firecrawl Dev', async () => {
-          const fcKey = userConfig.firecrawlApiKey || process.env.FIRECRAWL_API_KEY;
           const res = await fetchWithTimeout(
             'https://api.firecrawl.dev/v2/search',
             {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                ...(fcKey ? { Authorization: `Bearer ${fcKey}` } : {}),
+                ...(firecrawlKey ? { Authorization: `Bearer ${firecrawlKey}` } : {}),
               },
               body: JSON.stringify({ query: cleanQ, categories: ['developer'], limit: 5 }),
             },
@@ -1637,7 +1644,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     const primaryLang = regionProfile.wikiLang || 'en';
     const [oaTopicRes, wikiRes, sepRes] = await Promise.allSettled([
       isEngineEnabled('openalex')
-        ? openAlexGet('topics', { search: cleanQ, per_page: '2' }, userConfig.openAlexApiKey, 2800)
+        ? openAlexGet('topics', { search: cleanQ, per_page: '2' }, providers.openAlexApiKey, 2800)
         : Promise.resolve(null),
       (async () => {
         const tryLang = async (lang: string) => {
@@ -1754,7 +1761,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
           const data = await openAlexGet('works', {
             search: cleanQ, per_page: '10', page: String(page),
             ...(parsedQuery.bang?.sectionHint === 'datasets' ? { filter: 'type:dataset' } : {}),
-          }, userConfig.openAlexApiKey);
+          }, providers.openAlexApiKey);
           if (!Array.isArray(data.results)) throw new Error('Invalid OpenAlex search response');
           const works = data.results.map((work: any, rank: number) => mapOpenAlexWork(work, rank)).filter(Boolean);
           aggregatedResults.push(...works);
@@ -1766,7 +1773,6 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     if (isEngineEnabled('semanticscholar')) {
       paperTasks.push(
         trackEngine('semanticscholar', 'Semantic Scholar', async () => {
-          const s2Key = userConfig.semanticScholarApiKey || process.env.SEMANTIC_SCHOLAR_API_KEY;
           const offset = (page - 1) * 8;
           const s2Url = `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(
             cleanQ
@@ -2196,7 +2202,6 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       );
     }
 
-    const coreKey = userConfig.coreApiKey || process.env.CORE_API_KEY;
     if (isEngineEnabled('core') && coreKey) {
       paperTasks.push(
         trackEngine('core', 'CORE Open Access', async () => {
@@ -2398,7 +2403,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       const text = await callMcpSearchTool(
         'exa',
         'https://mcp.exa.ai/mcp',
-        process.env.EXA_API_KEY ? { 'x-api-key': process.env.EXA_API_KEY } : {},
+        exaKey ? { 'x-api-key': exaKey } : {},
         'web_search_exa',
         {
           query: effectiveQuery,
@@ -2438,7 +2443,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       const innerText = await callMcpSearchTool(
         'parallel',
         'https://search.parallel.ai/mcp',
-        process.env.PARALLEL_API_KEY ? { 'x-api-key': process.env.PARALLEL_API_KEY } : {},
+        parallelKey ? { 'x-api-key': parallelKey } : {},
         'web_search',
         {
           objective: `Search authoritative pages for: ${cleanQ}`,
@@ -2492,8 +2497,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(process.env.TAVILY_API_KEY
-              ? { Authorization: `Bearer ${process.env.TAVILY_API_KEY}` }
+            ...(tavilyKey
+              ? { Authorization: `Bearer ${tavilyKey}` }
               : { 'X-Tavily-Access-Mode': 'keyless' }),
           },
           body: JSON.stringify(body),
@@ -2557,8 +2562,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(process.env.FIRECRAWL_API_KEY
-              ? { Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY}` }
+            ...(firecrawlKey
+              ? { Authorization: `Bearer ${firecrawlKey}` }
               : {}),
           },
           body: JSON.stringify(body),
@@ -2676,10 +2681,10 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       }
       const innerText = await callMcpSearchTool(
         'keenable',
-        process.env.KEENABLE_API_KEY
+        keenableKey
           ? 'https://api.keenable.ai/mcp'
           : 'https://api.keenable.ai/mcp-public',
-        process.env.KEENABLE_API_KEY ? { 'X-API-Key': process.env.KEENABLE_API_KEY } : {},
+        keenableKey ? { 'X-API-Key': keenableKey } : {},
         'search_web_pages',
         args,
         3600
@@ -2739,8 +2744,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       const innerText = await callMcpSearchTool(
         'tinyfish',
         'https://agent.tinyfish.ai/mcp',
-        process.env.TINYFISH_API_KEY
-          ? { 'X-API-Key': process.env.TINYFISH_API_KEY }
+        tinyfishKey
+          ? { 'X-API-Key': tinyfishKey }
           : { 'X-TinyFish-Access-Mode': 'keyless' },
         'search',
         args,

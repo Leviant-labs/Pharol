@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runMetasearch } from '@/lib/server-search';
-import { requestProviders } from '@/lib/provider-credentials';
+import { requestProviderContext } from '@/lib/provider-credentials';
+import { searchNews } from '@/lib/news-service';
+import { readWebpage } from '@/lib/reader-service';
 import { runPaperTool, PAPER_TOOL_NAMES } from '@/lib/paper-tools';
 import { NewsAccessFilter, SearchCategory, SearchRegion, TimeRange } from '@/lib/search-types';
 import {
@@ -9,8 +11,6 @@ import {
   buildJsonRpcError,
   buildJsonRpcSuccess,
 } from '@/lib/mcp-tools';
-import { GET as newsGET } from '../news/route';
-import { GET as readerGET } from '../reader/route';
 import { GET as suggestGET } from '../suggest/route';
 import { GET as weatherGET } from '../weather/route';
 
@@ -96,9 +96,9 @@ export async function POST(req: NextRequest) {
     const args: Record<string, any> = params?.arguments || {};
 
     try {
-      const userConfig = requestProviders(req);
+      const providerContext = requestProviderContext(req);
       if (toolName && PAPER_TOOL_NAMES.includes(toolName)) {
-        const data = await runPaperTool(toolName, args, userConfig);
+        const data = await runPaperTool(toolName, args, providerContext.userConfig, providerContext.providerDefaults);
         return NextResponse.json(buildJsonRpcSuccess(id, {
           content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
         }), { headers: CORS_HEADERS });
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
           page,
           region,
           acceptLanguage,
-          userConfig,
+          ...providerContext,
         });
 
         return NextResponse.json(
@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
           rawQuery: query,
           category: 'science',
           page,
-          userConfig,
+          ...providerContext,
           ignoreBangRouting: true,
         });
 
@@ -212,16 +212,14 @@ export async function POST(req: NextRequest) {
       }
 
       if (toolName === 'news_search') {
-        const sp = new URLSearchParams();
-        if (args.query) sp.set('q', String(args.query));
-        if (args.topic) sp.set('topic', String(args.topic));
-        if (args.region) sp.set('region', String(args.region));
-        sp.set('access', (args.access as NewsAccessFilter) || 'free');
-        const internalReq = new NextRequest(`http://localhost:3000/api/news?${sp.toString()}`, {
-          headers: req.headers,
+        const data = await searchNews({
+          query: args.query ? String(args.query) : undefined,
+          topic: args.topic ? String(args.topic) : undefined,
+          region: args.region ? String(args.region) as SearchRegion : undefined,
+          access: (args.access as NewsAccessFilter) || 'free',
+          acceptLanguage: req.headers.get('accept-language') || undefined,
+          ...providerContext,
         });
-        const res = await newsGET(internalReq);
-        const data = await res.json();
 
         return NextResponse.json(
           buildJsonRpcSuccess(id, {
@@ -239,11 +237,7 @@ export async function POST(req: NextRequest) {
             { status: 400, headers: CORS_HEADERS }
           );
         }
-        const internalReq = new NextRequest(
-          `http://localhost:3000/api/reader?url=${encodeURIComponent(targetUrl)}`
-        );
-        const res = await readerGET(internalReq);
-        const data = await res.json();
+        const data = await readWebpage(targetUrl, providerContext);
 
         return NextResponse.json(
           buildJsonRpcSuccess(id, {

@@ -1,0 +1,620 @@
+{
+  "startedAt": "2026-11-19T16:08:07.728Z",
+  "cli": "/tmp/pharol-cli-test/node_modules/.bin/pharol",
+  "mcpUrl": "http://127.0.0.1:3105/api/mcp",
+  "opsPerLevel": 30,
+  "levels": [
+    {
+      "label": "cli-search:repeated",
+      "kind": "cli-search",
+      "concurrency": 1,
+      "repeated": true,
+      "ops": 30,
+      "p50Ms": 1361,
+      "p95Ms": 1404,
+      "throughputOpsPerSec": 0.7,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 172060,
+      "windowMs": 40703
+    },
+    {
+      "label": "cli-search:distinct",
+      "kind": "cli-search",
+      "concurrency": 1,
+      "repeated": false,
+      "ops": 30,
+      "p50Ms": 1356,
+      "p95Ms": 1406,
+      "throughputOpsPerSec": 0.7,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 172064,
+      "windowMs": 40613
+    },
+    {
+      "label": "cli-search:repeated",
+      "kind": "cli-search",
+      "concurrency": 5,
+      "repeated": true,
+      "ops": 30,
+      "p50Ms": 1882,
+      "p95Ms": 3451,
+      "throughputOpsPerSec": 2.4,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 172064,
+      "windowMs": 12721
+    },
+    {
+      "label": "cli-search:distinct",
+      "kind": "cli-search",
+      "concurrency": 5,
+      "repeated": false,
+      "ops": 30,
+      "p50Ms": 2182,
+      "p95Ms": 3994,
+      "throughputOpsPerSec": 2,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 172064,
+      "windowMs": 14862
+    },
+    {
+      "label": "cli-search:repeated",
+      "kind": "cli-search",
+      "concurrency": 20,
+      "repeated": true,
+      "ops": 30,
+      "p50Ms": 7046,
+      "p95Ms": 13717,
+      "throughputOpsPerSec": 2.1,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 172056,
+      "windowMs": 14053
+    },
+    {
+      "label": "cli-search:distinct",
+      "kind": "cli-search",
+      "concurrency": 20,
+      "repeated": false,
+      "ops": 30,
+      "p50Ms": 6943,
+      "p95Ms": 13849,
+      "throughputOpsPerSec": 2.1,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 172044,
+      "windowMs": 14139
+    },
+    {
+      "label": "cli-read:repeated",
+      "kind": "cli-read",
+      "concurrency": 1,
+      "repeated": true,
+      "ops": 30,
+      "p50Ms": 1304,
+      "p95Ms": 1427,
+      "throughputOpsPerSec": 0.8,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 172044,
+      "windowMs": 39475
+    },
+    {
+      "label": "cli-read:distinct",
+      "kind": "cli-read",
+      "concurrency": 1,
+      "repeated": false,
+      "ops": 30,
+      "p50Ms": 1313,
+      "p95Ms": 1364,
+      "throughputOpsPerSec": 0.8,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 172044,
+      "windowMs": 38611
+    },
+    {
+      "label": "cli-read:repeated",
+      "kind": "cli-read",
+      "concurrency": 5,
+      "repeated": true,
+      "ops": 30,
+      "p50Ms": 1862,
+      "p95Ms": 3596,
+      "throughputOpsPerSec": 2.3,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 172060,
+      "windowMs": 13315
+    },
+    {
+      "label": "cli-read:distinct",
+      "kind": "cli-read",
+      "concurrency": 5,
+      "repeated": false,
+      "ops": 30,
+      "p50Ms": 1741,
+      "p95Ms": 3260,
+      "throughputOpsPerSec": 2.4,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 172028,
+      "windowMs": 12417
+    },
+    {
+      "label": "cli-read:repeated",
+      "kind": "cli-read",
+      "concurrency": 20,
+      "repeated": true,
+      "ops": 30,
+      "p50Ms": 6991,
+      "p95Ms": 11621,
+      "throughputOpsPerSec": 2.5,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 171964,
+      "windowMs": 11910
+    },
+    {
+      "label": "cli-read:distinct",
+      "kind": "cli-read",
+      "concurrency": 20,
+      "repeated": false,
+      "ops": 30,
+      "p50Ms": 4960,
+      "p95Ms": 10732,
+      "throughputOpsPerSec": 2.7,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 171956,
+      "windowMs": 11012
+    },
+    {
+      "label": "mcp-search:repeated",
+      "kind": "mcp-search",
+      "concurrency": 1,
+      "repeated": true,
+      "ops": 30,
+      "p50Ms": 9,
+      "p95Ms": 19,
+      "throughputOpsPerSec": 68.4,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 1,
+      "peakServerRssKb": 173296,
+      "windowMs": 439
+    },
+    {
+      "label": "mcp-search:distinct",
+      "kind": "mcp-search",
+      "concurrency": 1,
+      "repeated": false,
+      "ops": 30,
+      "p50Ms": 46,
+      "p95Ms": 52,
+      "throughputOpsPerSec": 21.5,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 174688,
+      "windowMs": 1393
+    },
+    {
+      "label": "mcp-search:repeated",
+      "kind": "mcp-search",
+      "concurrency": 5,
+      "repeated": true,
+      "ops": 30,
+      "p50Ms": 36,
+      "p95Ms": 51,
+      "throughputOpsPerSec": 146.8,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 0,
+      "peakServerRssKb": 178160,
+      "windowMs": 204
+    },
+    {
+      "label": "mcp-search:distinct",
+      "kind": "mcp-search",
+      "concurrency": 5,
+      "repeated": false,
+      "ops": 30,
+      "p50Ms": 22,
+      "p95Ms": 49,
+      "throughputOpsPerSec": 166.6,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 0,
+      "peakServerRssKb": 0,
+      "windowMs": 180
+    },
+    {
+      "label": "mcp-search:repeated",
+      "kind": "mcp-search",
+      "concurrency": 20,
+      "repeated": true,
+      "ops": 30,
+      "p50Ms": 87,
+      "p95Ms": 213,
+      "throughputOpsPerSec": 115.9,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 0,
+      "peakServerRssKb": 181824,
+      "windowMs": 259
+    },
+    {
+      "label": "mcp-search:distinct",
+      "kind": "mcp-search",
+      "concurrency": 20,
+      "repeated": false,
+      "ops": 30,
+      "p50Ms": 100,
+      "p95Ms": 185,
+      "throughputOpsPerSec": 144.2,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 0,
+      "peakServerRssKb": 186988,
+      "windowMs": 208
+    },
+    {
+      "label": "mcp-read:repeated",
+      "kind": "mcp-read",
+      "concurrency": 1,
+      "repeated": true,
+      "ops": 30,
+      "p50Ms": 45,
+      "p95Ms": 52,
+      "throughputOpsPerSec": 21.4,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 188388,
+      "windowMs": 1403
+    },
+    {
+      "label": "mcp-read:distinct",
+      "kind": "mcp-read",
+      "concurrency": 1,
+      "repeated": false,
+      "ops": 30,
+      "p50Ms": 45,
+      "p95Ms": 62,
+      "throughputOpsPerSec": 21.7,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 188560,
+      "windowMs": 1383
+    },
+    {
+      "label": "mcp-read:repeated",
+      "kind": "mcp-read",
+      "concurrency": 5,
+      "repeated": true,
+      "ops": 30,
+      "p50Ms": 52,
+      "p95Ms": 77,
+      "throughputOpsPerSec": 86.1,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 189300,
+      "windowMs": 349
+    },
+    {
+      "label": "mcp-read:distinct",
+      "kind": "mcp-read",
+      "concurrency": 5,
+      "repeated": false,
+      "ops": 30,
+      "p50Ms": 43,
+      "p95Ms": 61,
+      "throughputOpsPerSec": 101.9,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 195648,
+      "windowMs": 294
+    },
+    {
+      "label": "mcp-read:repeated",
+      "kind": "mcp-read",
+      "concurrency": 20,
+      "repeated": true,
+      "ops": 30,
+      "p50Ms": 133,
+      "p95Ms": 212,
+      "throughputOpsPerSec": 129.1,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 203772,
+      "windowMs": 232
+    },
+    {
+      "label": "mcp-read:distinct",
+      "kind": "mcp-read",
+      "concurrency": 20,
+      "repeated": false,
+      "ops": 30,
+      "p50Ms": 88,
+      "p95Ms": 138,
+      "throughputOpsPerSec": 180.6,
+      "expectedFailures": 0,
+      "unexpectedFailures": 0,
+      "upstreamDelta": 30,
+      "peakServerRssKb": 0,
+      "windowMs": 166
+    }
+  ],
+  "hold": {
+    "kind": "mcp-search",
+    "concurrency": 20,
+    "holdMs": 300000,
+    "ops": 124378,
+    "fails": 0,
+    "peakServerRssKb": 533932,
+    "growthRatio": 0.633,
+    "samples": [
+      {
+        "ts": 1795104763515,
+        "rssKb": 299912
+      },
+      {
+        "ts": 1795104768515,
+        "rssKb": 335152
+      },
+      {
+        "ts": 1795104773515,
+        "rssKb": 368080
+      },
+      {
+        "ts": 1795104778515,
+        "rssKb": 401204
+      },
+      {
+        "ts": 1795104783515,
+        "rssKb": 401652
+      },
+      {
+        "ts": 1795104788515,
+        "rssKb": 401836
+      },
+      {
+        "ts": 1795104793515,
+        "rssKb": 422228
+      },
+      {
+        "ts": 1795104798515,
+        "rssKb": 457056
+      },
+      {
+        "ts": 1795104803515,
+        "rssKb": 498260
+      },
+      {
+        "ts": 1795104808515,
+        "rssKb": 511028
+      },
+      {
+        "ts": 1795104813515,
+        "rssKb": 511028
+      },
+      {
+        "ts": 1795104818516,
+        "rssKb": 511160
+      },
+      {
+        "ts": 1795104823516,
+        "rssKb": 512860
+      },
+      {
+        "ts": 1795104828516,
+        "rssKb": 512884
+      },
+      {
+        "ts": 1795104833517,
+        "rssKb": 531192
+      },
+      {
+        "ts": 1795104838517,
+        "rssKb": 531192
+      },
+      {
+        "ts": 1795104843518,
+        "rssKb": 531324
+      },
+      {
+        "ts": 1795104848518,
+        "rssKb": 531584
+      },
+      {
+        "ts": 1795104853518,
+        "rssKb": 531596
+      },
+      {
+        "ts": 1795104858518,
+        "rssKb": 533540
+      },
+      {
+        "ts": 1795104863518,
+        "rssKb": 533672
+      },
+      {
+        "ts": 1795104868519,
+        "rssKb": 533672
+      },
+      {
+        "ts": 1795104873519,
+        "rssKb": 533932
+      },
+      {
+        "ts": 1795104878519,
+        "rssKb": 532428
+      },
+      {
+        "ts": 1795104883519,
+        "rssKb": 532560
+      },
+      {
+        "ts": 1795104888519,
+        "rssKb": 532564
+      },
+      {
+        "ts": 1795104893519,
+        "rssKb": 532824
+      },
+      {
+        "ts": 1795104898519,
+        "rssKb": 477080
+      },
+      {
+        "ts": 1795104903520,
+        "rssKb": 478928
+      },
+      {
+        "ts": 1795104908520,
+        "rssKb": 481476
+      },
+      {
+        "ts": 1795104913520,
+        "rssKb": 486444
+      },
+      {
+        "ts": 1795104918520,
+        "rssKb": 489652
+      },
+      {
+        "ts": 1795104923520,
+        "rssKb": 490452
+      },
+      {
+        "ts": 1795104928520,
+        "rssKb": 422452
+      },
+      {
+        "ts": 1795104933521,
+        "rssKb": 443880
+      },
+      {
+        "ts": 1795104938521,
+        "rssKb": 471892
+      },
+      {
+        "ts": 1795104943520,
+        "rssKb": 474448
+      },
+      {
+        "ts": 1795104948520,
+        "rssKb": 477980
+      },
+      {
+        "ts": 1795104953521,
+        "rssKb": 486180
+      },
+      {
+        "ts": 1795104958522,
+        "rssKb": 486548
+      },
+      {
+        "ts": 1795104963521,
+        "rssKb": 486816
+      },
+      {
+        "ts": 1795104968522,
+        "rssKb": 488708
+      },
+      {
+        "ts": 1795104973522,
+        "rssKb": 488840
+      },
+      {
+        "ts": 1795104978521,
+        "rssKb": 489100
+      },
+      {
+        "ts": 1795104983522,
+        "rssKb": 489100
+      },
+      {
+        "ts": 1795104988522,
+        "rssKb": 488708
+      },
+      {
+        "ts": 1795104993523,
+        "rssKb": 488840
+      },
+      {
+        "ts": 1795104998523,
+        "rssKb": 489104
+      },
+      {
+        "ts": 1795105003523,
+        "rssKb": 488712
+      },
+      {
+        "ts": 1795105008523,
+        "rssKb": 488844
+      },
+      {
+        "ts": 1795105013524,
+        "rssKb": 489104
+      },
+      {
+        "ts": 1795105018524,
+        "rssKb": 489584
+      },
+      {
+        "ts": 1795105023523,
+        "rssKb": 489716
+      },
+      {
+        "ts": 1795105028524,
+        "rssKb": 489976
+      },
+      {
+        "ts": 1795105033524,
+        "rssKb": 489584
+      },
+      {
+        "ts": 1795105038524,
+        "rssKb": 489716
+      },
+      {
+        "ts": 1795105043525,
+        "rssKb": 489716
+      },
+      {
+        "ts": 1795105048525,
+        "rssKb": 490000
+      },
+      {
+        "ts": 1795105053525,
+        "rssKb": 489608
+      },
+      {
+        "ts": 1795105058526,
+        "rssKb": 489740
+      }
+    ]
+  },
+  "completedAt": "2026-11-19T16:17:38.557Z"
+}

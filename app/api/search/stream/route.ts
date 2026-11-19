@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { runMetasearch } from '@/lib/server-search';
 import { SearchCategory, SearchRegion, TimeRange } from '@/lib/search-types';
-import { requestProviders } from '@/lib/provider-credentials';
+import { requestProviderContext } from '@/lib/provider-credentials';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const timeRange = (searchParams.get('timeRange') as TimeRange) || 'all';
   const region = (searchParams.get('region') as SearchRegion) || 'auto';
   const acceptLanguage = searchParams.get('lang') || req.headers.get('accept-language') || undefined;
-  const userConfig = requestProviders(req);
+  const providerContext = requestProviderContext(req);
 
   const encoder = new TextEncoder();
 
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
           timeRange,
           region,
           acceptLanguage,
-          userConfig,
+          ...providerContext,
           onBatch: (partial) => {
             sendEvent('batch', partial);
           },

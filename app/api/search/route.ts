@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runMetasearch } from '@/lib/server-search';
 import { SearchCategory, SearchRegion, TimeRange } from '@/lib/search-types';
-import { requestProviders } from '@/lib/provider-credentials';
+import { requestProviderContext } from '@/lib/provider-credentials';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -12,7 +12,6 @@ export async function GET(req: NextRequest) {
   const timeRange = (searchParams.get('timeRange') as TimeRange) || 'all';
   const region = (searchParams.get('region') as SearchRegion) || 'auto';
   const acceptLanguage = searchParams.get('lang') || req.headers.get('accept-language') || undefined;
-  const userConfig = requestProviders(req);
 
   const result = await runMetasearch({
     rawQuery,
@@ -22,7 +21,7 @@ export async function GET(req: NextRequest) {
     timeRange,
     region,
     acceptLanguage,
-    userConfig,
+    ...requestProviderContext(req),
   });
 
   return NextResponse.json(result, { headers: { 'Cache-Control': 'private, no-store', Vary: 'Cookie' } });
