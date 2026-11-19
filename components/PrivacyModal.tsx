@@ -99,6 +99,30 @@ function ProviderKeysForm({ configured, onSave }: {
       hint: 'Optional override for Firecrawl developer & web search',
       placeholder: 'fc-...',
     },
+    {
+      field: 'tavilyApiKey',
+      label: 'Tavily API Key',
+      hint: 'Search stays keyless without it · your key raises rate limits',
+      placeholder: 'tvly-...',
+    },
+    {
+      field: 'parallelApiKey',
+      label: 'Parallel API Key',
+      hint: 'Public MCP works keyless · your key raises rate limits',
+      placeholder: 'Parallel API key...',
+    },
+    {
+      field: 'keenableApiKey',
+      label: 'Keenable API Key',
+      hint: 'Uses the public MCP endpoint until a key is added',
+      placeholder: 'Keenable API key...',
+    },
+    {
+      field: 'tinyfishApiKey',
+      label: 'TinyFish API Key',
+      hint: 'Search stays keyless without it · your key raises rate limits',
+      placeholder: 'TinyFish API key...',
+    },
   ];
 
 

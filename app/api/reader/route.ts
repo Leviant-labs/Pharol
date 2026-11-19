@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
 import { ReaderBlock, ReaderContent } from '@/lib/search-types';
+import { requestProviders } from '@/lib/provider-credentials';
 import {
   classifySourceAccess,
   decodeHtmlEntities,
@@ -124,7 +125,7 @@ async function tryWikipediaReader(targetUrl: string): Promise<ReaderContent | nu
 /**
  * Tier 4B: Keyless Firecrawl v2 Scrape fallback (no Authorization header)
  */
-async function tryFirecrawlReader(resolvedUrl: string): Promise<ReaderContent | null> {
+async function tryFirecrawlReader(resolvedUrl: string, key?: string): Promise<ReaderContent | null> {
   try {
     const res = await fetchWithTimeout(
       'https://api.firecrawl.dev/v2/scrape',
@@ -132,9 +133,7 @@ async function tryFirecrawlReader(resolvedUrl: string): Promise<ReaderContent | 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(process.env.FIRECRAWL_API_KEY
-            ? { Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY}` }
-            : {}),
+          ...(key ? { Authorization: `Bearer ${key}` } : {}),
         },
         body: JSON.stringify({ url: resolvedUrl, formats: ['markdown'], onlyMainContent: true }),
       },
@@ -172,10 +171,10 @@ async function tryFirecrawlReader(resolvedUrl: string): Promise<ReaderContent | 
 /**
  * Tier 4C: Keenable Public MCP Page Reader fallback
  */
-async function tryKeenableReader(resolvedUrl: string): Promise<ReaderContent | null> {
+async function tryKeenableReader(resolvedUrl: string, key?: string): Promise<ReaderContent | null> {
   try {
     const res = await fetchWithTimeout(
-      process.env.KEENABLE_API_KEY
+      key
         ? 'https://api.keenable.ai/mcp'
         : 'https://api.keenable.ai/mcp-public',
       {
@@ -183,7 +182,7 @@ async function tryKeenableReader(resolvedUrl: string): Promise<ReaderContent | n
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json, text/event-stream',
-          ...(process.env.KEENABLE_API_KEY ? { 'X-API-Key': process.env.KEENABLE_API_KEY } : {}),
+          ...(key ? { 'X-API-Key': key } : {}),
         },
         body: JSON.stringify({
           jsonrpc: '2.0',
@@ -636,6 +635,7 @@ async function tryJinaReader(resolvedUrl: string): Promise<ReaderContent | null>
 }
 
 export async function GET(req: NextRequest) {
+  const providers = requestProviders(req);
   const { searchParams } = new URL(req.url);
   const rawUrl = searchParams.get('url')?.trim();
 
@@ -807,8 +807,8 @@ export async function GET(req: NextRequest) {
     // 4. Jina Reader + Firecrawl Keyless + Keenable Public Reader Fallbacks (for open JS-rendered SPAs or thin HTML)
     const externalReader =
       (await tryJinaReader(targetUrl)) ||
-      (await tryFirecrawlReader(targetUrl)) ||
-      (await tryKeenableReader(targetUrl));
+      (await tryFirecrawlReader(targetUrl, providers.firecrawlApiKey)) ||
+      (await tryKeenableReader(targetUrl, providers.keenableApiKey));
     if (externalReader) {
       if (directResult?.heroImage && !externalReader.heroImage) {
         externalReader.heroImage = directResult.heroImage;

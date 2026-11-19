@@ -28,6 +28,10 @@ export interface UserProviderConfig {
   githubToken?: string;
   exaApiKey?: string;
   firecrawlApiKey?: string;
+  tavilyApiKey?: string;
+  parallelApiKey?: string;
+  keenableApiKey?: string;
+  tinyfishApiKey?: string;
   openDeepWikiUrl?: string;
 }
 

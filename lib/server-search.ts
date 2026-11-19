@@ -233,6 +233,11 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
   const hasUserOverrides = Object.values(userConfig).some(
     (v) => typeof v === 'string' && v.trim().length > 0
   );
+  // A saved user key takes precedence over the operator's environment key.
+  const tavilyKey = userConfig.tavilyApiKey || process.env.TAVILY_API_KEY;
+  const parallelKey = userConfig.parallelApiKey || process.env.PARALLEL_API_KEY;
+  const keenableKey = userConfig.keenableApiKey || process.env.KEENABLE_API_KEY;
+  const tinyfishKey = userConfig.tinyfishApiKey || process.env.TINYFISH_API_KEY;
 
   if (!rawQuery) {
     return {
@@ -931,8 +936,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  ...(process.env.TAVILY_API_KEY
-                    ? { Authorization: `Bearer ${process.env.TAVILY_API_KEY}` }
+                  ...(tavilyKey
+                    ? { Authorization: `Bearer ${tavilyKey}` }
                     : { 'X-Tavily-Access-Mode': 'keyless' }),
                 },
                 body: JSON.stringify({ query: cleanQ, topic: 'news', days: 7, max_results: 8 }),
@@ -980,8 +985,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
             const inner = await callMcpSearchTool(
               'tinyfish-news',
               'https://agent.tinyfish.ai/mcp',
-              process.env.TINYFISH_API_KEY
-                ? { 'X-API-Key': process.env.TINYFISH_API_KEY }
+              tinyfishKey
+                ? { 'X-API-Key': tinyfishKey }
                 : { 'X-TinyFish-Access-Mode': 'keyless' },
               'search',
               tfArgs,
@@ -2438,7 +2443,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       const innerText = await callMcpSearchTool(
         'parallel',
         'https://search.parallel.ai/mcp',
-        process.env.PARALLEL_API_KEY ? { 'x-api-key': process.env.PARALLEL_API_KEY } : {},
+        parallelKey ? { 'x-api-key': parallelKey } : {},
         'web_search',
         {
           objective: `Search authoritative pages for: ${cleanQ}`,
@@ -2492,8 +2497,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(process.env.TAVILY_API_KEY
-              ? { Authorization: `Bearer ${process.env.TAVILY_API_KEY}` }
+            ...(tavilyKey
+              ? { Authorization: `Bearer ${tavilyKey}` }
               : { 'X-Tavily-Access-Mode': 'keyless' }),
           },
           body: JSON.stringify(body),
@@ -2676,10 +2681,10 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       }
       const innerText = await callMcpSearchTool(
         'keenable',
-        process.env.KEENABLE_API_KEY
+        keenableKey
           ? 'https://api.keenable.ai/mcp'
           : 'https://api.keenable.ai/mcp-public',
-        process.env.KEENABLE_API_KEY ? { 'X-API-Key': process.env.KEENABLE_API_KEY } : {},
+        keenableKey ? { 'X-API-Key': keenableKey } : {},
         'search_web_pages',
         args,
         3600
@@ -2739,8 +2744,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       const innerText = await callMcpSearchTool(
         'tinyfish',
         'https://agent.tinyfish.ai/mcp',
-        process.env.TINYFISH_API_KEY
-          ? { 'X-API-Key': process.env.TINYFISH_API_KEY }
+        tinyfishKey
+          ? { 'X-API-Key': tinyfishKey }
           : { 'X-TinyFish-Access-Mode': 'keyless' },
         'search',
         args,

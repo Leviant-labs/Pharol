@@ -761,6 +761,10 @@ test('user provider HTTP headers round-trip client keys & custom OpenDeepWiki UR
     context7ApiKey: 'ctx7-secret',
     semanticScholarApiKey: 's2-key',
     coreApiKey: 'core-key',
+    tavilyApiKey: 'tvly-key',
+    parallelApiKey: 'parallel-key',
+    keenableApiKey: 'keenable-key',
+    tinyfishApiKey: 'tinyfish-key',
     openDeepWikiUrl: 'https://wiki.internal.example',
   });
   const headers = new Headers(headersObj);
@@ -769,6 +773,10 @@ test('user provider HTTP headers round-trip client keys & custom OpenDeepWiki UR
     context7ApiKey: 'ctx7-secret',
     semanticScholarApiKey: 's2-key',
     coreApiKey: 'core-key',
+    tavilyApiKey: 'tvly-key',
+    parallelApiKey: 'parallel-key',
+    keenableApiKey: 'keenable-key',
+    tinyfishApiKey: 'tinyfish-key',
     openDeepWikiUrl: 'https://wiki.internal.example',
   });
 });

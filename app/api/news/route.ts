@@ -15,6 +15,7 @@ import {
   RegionProfile,
 } from '@/lib/search-engine';
 import { NewsAccessFilter, SearchRegion, SearchResult } from '@/lib/search-types';
+import { requestProviders } from '@/lib/provider-credentials';
 
 const BROWSER_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
@@ -367,7 +368,8 @@ async function fetchHackerNewsStories(query: string): Promise<SearchResult[]> {
  */
 async function fetchTinyFishNews(
   query: string,
-  regionProfile: RegionProfile
+  regionProfile: RegionProfile,
+  key?: string
 ): Promise<SearchResult[]> {
   const items: SearchResult[] = [];
   try {
@@ -389,8 +391,8 @@ async function fetchTinyFishNews(
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json, text/event-stream',
-          ...(process.env.TINYFISH_API_KEY
-            ? { 'X-API-Key': process.env.TINYFISH_API_KEY }
+          ...(key
+            ? { 'X-API-Key': key }
             : { 'X-TinyFish-Access-Mode': 'keyless' }),
         },
         body: JSON.stringify({
@@ -438,7 +440,8 @@ async function fetchTinyFishNews(
  */
 async function fetchFirecrawlNews(
   query: string,
-  regionProfile: RegionProfile
+  regionProfile: RegionProfile,
+  key?: string
 ): Promise<SearchResult[]> {
   const items: SearchResult[] = [];
   try {
@@ -459,9 +462,7 @@ async function fetchFirecrawlNews(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(process.env.FIRECRAWL_API_KEY
-            ? { Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY}` }
-            : {}),
+          ...(key ? { Authorization: `Bearer ${key}` } : {}),
         },
         body: JSON.stringify(fcPayload),
       },
@@ -496,7 +497,7 @@ async function fetchFirecrawlNews(
 /**
  * 7. Tavily Keyless News (`topic: "news"`)
  */
-async function fetchTavilyNews(query: string): Promise<SearchResult[]> {
+async function fetchTavilyNews(query: string, key?: string): Promise<SearchResult[]> {
   const items: SearchResult[] = [];
   try {
     const res = await fetchWithTimeout(
@@ -505,8 +506,8 @@ async function fetchTavilyNews(query: string): Promise<SearchResult[]> {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(process.env.TAVILY_API_KEY
-            ? { Authorization: `Bearer ${process.env.TAVILY_API_KEY}` }
+          ...(key
+            ? { Authorization: `Bearer ${key}` }
             : { 'X-Tavily-Access-Mode': 'keyless' }),
         },
         body: JSON.stringify({
@@ -546,6 +547,7 @@ async function fetchTavilyNews(query: string): Promise<SearchResult[]> {
 }
 
 export async function GET(req: NextRequest) {
+  const providers = requestProviders(req);
   const { searchParams } = new URL(req.url);
   const q = searchParams.get('q')?.trim();
   const topic = searchParams.get('topic')?.trim() || 'TOP';
@@ -580,9 +582,9 @@ export async function GET(req: NextRequest) {
       q || topic.toUpperCase() === 'TECHNOLOGY'
         ? fetchHackerNewsStories(q || 'technology')
         : Promise.resolve([]),
-      fetchTinyFishNews(effectiveQuery, regionProfile),
-      fetchFirecrawlNews(effectiveQuery, regionProfile),
-      fetchTavilyNews(effectiveQuery),
+      fetchTinyFishNews(effectiveQuery, regionProfile, providers.tinyfishApiKey),
+      fetchFirecrawlNews(effectiveQuery, regionProfile, providers.firecrawlApiKey),
+      fetchTavilyNews(effectiveQuery, providers.tavilyApiKey),
     ]);
 
     const combined: SearchResult[] = [

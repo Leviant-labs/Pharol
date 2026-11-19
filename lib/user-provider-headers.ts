@@ -8,6 +8,10 @@ export const USER_PROVIDER_HEADER_MAP: Array<[keyof UserProviderConfig, string]>
   ['githubToken', 'x-pharol-github-token'],
   ['exaApiKey', 'x-pharol-exa-key'],
   ['firecrawlApiKey', 'x-pharol-firecrawl-key'],
+  ['tavilyApiKey', 'x-pharol-tavily-key'],
+  ['parallelApiKey', 'x-pharol-parallel-key'],
+  ['keenableApiKey', 'x-pharol-keenable-key'],
+  ['tinyfishApiKey', 'x-pharol-tinyfish-key'],
   ['openDeepWikiUrl', 'x-pharol-opendeepwiki-url'],
 ];
 

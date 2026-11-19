@@ -39,12 +39,16 @@ export async function PATCH(req: NextRequest) {
       chunks.push(value);
     }
     const raw = Buffer.concat(chunks).toString();
-    const config = patchProviders(openProviders(req.cookies.get(PROVIDER_COOKIE)?.value), JSON.parse(raw));
+    let patch: unknown;
+    try { patch = JSON.parse(raw); }
+    catch { return NextResponse.json({ error: 'Settings body must be valid JSON' }, { status: 400, headers }); }
+    const config = patchProviders(openProviders(req.cookies.get(PROVIDER_COOKIE)?.value), patch);
     const response = NextResponse.json({ configured: providerStatus(config) }, { headers });
     response.cookies.set(PROVIDER_COOKIE, sealProviders(config), cookieOptions);
     return response;
-  } catch {
-    return NextResponse.json({ error: 'Invalid settings. Paste keys only, up to 512 characters each; combined settings must fit within 2,500 bytes.' }, { status: 400, headers });
+  } catch (error) {
+    const message = error instanceof Error && error.message ? error.message : 'Invalid settings payload';
+    return NextResponse.json({ error: message }, { status: 400, headers });
   }
 }
 

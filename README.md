@@ -131,11 +131,14 @@ GITHUB_TOKEN=          # raises GitHub search rate limit
 
 ### Secure user-supplied keys
 
-Users add their own keys in **Privacy & Preferences → Keys & Hosts**, including
-an OpenAlex field with a link to its free-key settings page. Pharol does not
-register accounts or request verification emails on their behalf. Empty fields
-preserve saved keys; individual removal, replacement and removal of all keys
-are available. Saved keys are never returned to the UI. Old plaintext
+Users add their own keys in **Privacy & Preferences → Keys & Hosts**: Context7,
+Semantic Scholar, CORE, OpenAlex, GitHub, Exa, Firecrawl, Tavily, Parallel,
+Keenable and TinyFish, plus a trusted self-hosted OpenDeepWiki endpoint. OpenAlex
+links to its free-key settings page. Pharol does not register accounts or request
+verification emails on their behalf. Empty fields preserve saved keys; individual
+removal, replacement and removal of all keys are available. A saved key is used by
+web search, news search and reader mode alike, and takes precedence over the
+operator's environment key. Saved keys are never returned to the UI. Old plaintext
 `pharol_user_provider_config` localStorage entries are deleted on app startup;
 users must re-enter them.
 
