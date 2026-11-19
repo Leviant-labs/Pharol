@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { runMetasearch } from './server-search';
 import { lookupOpenAlexPaper, mapOpenAlexWork, openAlexGet } from './openalex';
+import { resolveProviderConfig } from './provider-config';
 import type { UserProviderConfig } from './search-types';
 
 export const PAPER_SOURCES = ['openalex', 'crossref', 'arxiv', 'pubmed', 'europepmc', 'semanticscholar', 'openaire', 'hal', 'datacite', 'inspire', 'core'];
@@ -12,10 +13,15 @@ function integer(value: unknown, fallback: number, maximum: number): number {
   return value;
 }
 
-export async function runPaperTool(name: string, args: Record<string, unknown>, config: UserProviderConfig) {
-  const key = config.openAlexApiKey;
+export async function runPaperTool(
+  name: string,
+  args: Record<string, unknown>,
+  userConfig: UserProviderConfig = {},
+  providerDefaults?: UserProviderConfig,
+) {
+  const key = resolveProviderConfig({ userConfig, providerDefaults }).openAlexApiKey;
   if (name === 'openalex_status') {
-    if (!key && !process.env.OPENALEX_API_KEY) return { keyConfigured: false, message: 'Add your free OpenAlex key to view account usage.' };
+    if (!key) return { keyConfigured: false, message: 'Add your free OpenAlex key to view account usage.' };
     const data = await openAlexGet('rate-limit', {}, key);
     const usage: Record<string, number> = {};
     const metrics = (value: any, prefix = '') => {
@@ -38,7 +44,7 @@ export async function runPaperTool(name: string, args: Record<string, unknown>, 
     if (!Array.isArray(sources) || !sources.length || sources.some((source) => !PAPER_SOURCES.includes(source))) throw new Error('Choose supported paper sources, fast, fastest or all');
     const response = await runMetasearch({
       rawQuery: args.query, category: 'science', enginesParam: sources.join(','),
-      page: integer(args.page, 1, 5), userConfig: config, includeConceptOverview: false,
+      page: integer(args.page, 1, 5), userConfig, providerDefaults, includeConceptOverview: false,
       ignoreBangRouting: true,
     });
     const seen = new Set<string>();

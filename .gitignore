@@ -23,3 +23,13 @@ next-env.d.ts
 
 # Coverage
 coverage/
+
+# Standalone CLI build and packaging output
+/packages/cli/dist/
+/packages/cli/source/
+/packages/cli/third_party/
+/leviant-labs-pharol-cli-*.tgz
+
+# Local stress runs (archived benchmark snapshots are tracked separately)
+/stress/results.json
+/stress/soak-results.json

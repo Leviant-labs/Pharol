@@ -1,0 +1,417 @@
+{
+  "startedAt": "2026-11-19T16:49:04.928Z",
+  "freshPrefix": "soakv2-001",
+  "serverPid": "22177",
+  "phases": [
+    {
+      "name": "warm-cache",
+      "durationMs": 120000,
+      "ops": 4800,
+      "fails": 0,
+      "p50Ms": 27,
+      "p95Ms": 46,
+      "upstreamDelta": 20,
+      "samples": [
+        {
+          "ts": 1795106949958,
+          "rssKb": 416216,
+          "heapUsedKb": 15713,
+          "rssBytes": 78901248
+        },
+        {
+          "ts": 1795106954955,
+          "rssKb": 416236,
+          "heapUsedKb": 15732,
+          "rssBytes": 78901248
+        },
+        {
+          "ts": 1795106959954,
+          "rssKb": 416104,
+          "heapUsedKb": 15771,
+          "rssBytes": 78901248
+        },
+        {
+          "ts": 1795106964956,
+          "rssKb": 416168,
+          "heapUsedKb": 15778,
+          "rssBytes": 78901248
+        },
+        {
+          "ts": 1795106969956,
+          "rssKb": 416168,
+          "heapUsedKb": 15789,
+          "rssBytes": 78901248
+        },
+        {
+          "ts": 1795106974955,
+          "rssKb": 416168,
+          "heapUsedKb": 15860,
+          "rssBytes": 78901248
+        },
+        {
+          "ts": 1795106979959,
+          "rssKb": 416168,
+          "heapUsedKb": 16004,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795106984957,
+          "rssKb": 416168,
+          "heapUsedKb": 16012,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795106989959,
+          "rssKb": 416168,
+          "heapUsedKb": 16014,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795106994954,
+          "rssKb": 416180,
+          "heapUsedKb": 16023,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795106999956,
+          "rssKb": 416180,
+          "heapUsedKb": 16024,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107004955,
+          "rssKb": 416184,
+          "heapUsedKb": 16024,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107009954,
+          "rssKb": 416204,
+          "heapUsedKb": 16025,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107014956,
+          "rssKb": 416232,
+          "heapUsedKb": 16027,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107019956,
+          "rssKb": 416232,
+          "heapUsedKb": 16027,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107024957,
+          "rssKb": 416248,
+          "heapUsedKb": 16027,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107029957,
+          "rssKb": 416400,
+          "heapUsedKb": 16028,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107034957,
+          "rssKb": 416400,
+          "heapUsedKb": 16029,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107039954,
+          "rssKb": 416400,
+          "heapUsedKb": 16029,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107044956,
+          "rssKb": 416412,
+          "heapUsedKb": 16029,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107049964,
+          "rssKb": 416412,
+          "heapUsedKb": 16029,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107054960,
+          "rssKb": 416412,
+          "heapUsedKb": 16030,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107059962,
+          "rssKb": 416412,
+          "heapUsedKb": 16031,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107064962,
+          "rssKb": 418032,
+          "heapUsedKb": 16031,
+          "rssBytes": 79294464
+        }
+      ],
+      "heapBaselineKb": 15713,
+      "heapLastKb": 16031,
+      "heapGrowthPct": 2
+    },
+    {
+      "name": "cold-query",
+      "durationMs": 120000,
+      "ops": 4800,
+      "fails": 0,
+      "p50Ms": 78,
+      "p95Ms": 102,
+      "upstreamDelta": 4800,
+      "samples": [
+        {
+          "ts": 1795107070024,
+          "rssKb": 418136,
+          "heapUsedKb": 16031,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107075029,
+          "rssKb": 418364,
+          "heapUsedKb": 16033,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107080027,
+          "rssKb": 418388,
+          "heapUsedKb": 16033,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107085027,
+          "rssKb": 418580,
+          "heapUsedKb": 16033,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107090027,
+          "rssKb": 418608,
+          "heapUsedKb": 16043,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107095033,
+          "rssKb": 418648,
+          "heapUsedKb": 16043,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107100036,
+          "rssKb": 419508,
+          "heapUsedKb": 16043,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107105032,
+          "rssKb": 419792,
+          "heapUsedKb": 16043,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107110033,
+          "rssKb": 419820,
+          "heapUsedKb": 16043,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107115035,
+          "rssKb": 419908,
+          "heapUsedKb": 16045,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107120028,
+          "rssKb": 419948,
+          "heapUsedKb": 16045,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107125035,
+          "rssKb": 419956,
+          "heapUsedKb": 16045,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107130035,
+          "rssKb": 423476,
+          "heapUsedKb": 16045,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107135034,
+          "rssKb": 425600,
+          "heapUsedKb": 16048,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107140041,
+          "rssKb": 273864,
+          "heapUsedKb": 16054,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107145035,
+          "rssKb": 278180,
+          "heapUsedKb": 16054,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107150035,
+          "rssKb": 281416,
+          "heapUsedKb": 16059,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107155038,
+          "rssKb": 289828,
+          "heapUsedKb": 16059,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107160036,
+          "rssKb": 291408,
+          "heapUsedKb": 16059,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107165037,
+          "rssKb": 293800,
+          "heapUsedKb": 16062,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107170034,
+          "rssKb": 315636,
+          "heapUsedKb": 16069,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107175037,
+          "rssKb": 323832,
+          "heapUsedKb": 16069,
+          "rssBytes": 79294464
+        },
+        {
+          "ts": 1795107180035,
+          "rssKb": 323908,
+          "heapUsedKb": 16070,
+          "rssBytes": 79294464
+        }
+      ],
+      "heapBaselineKb": 16031,
+      "heapLastKb": 16070,
+      "heapGrowthPct": 0.2
+    },
+    {
+      "name": "control-capabilities",
+      "durationMs": 90000,
+      "ops": 3600,
+      "fails": 0,
+      "p50Ms": 30,
+      "p95Ms": 51,
+      "samples": [
+        {
+          "ts": 1795107190062,
+          "rssKb": 333196,
+          "heapUsedKb": 16078
+        },
+        {
+          "ts": 1795107195057,
+          "rssKb": 333516,
+          "heapUsedKb": 16078
+        },
+        {
+          "ts": 1795107200060,
+          "rssKb": 339244,
+          "heapUsedKb": 16078
+        },
+        {
+          "ts": 1795107205057,
+          "rssKb": 344716,
+          "heapUsedKb": 16078
+        },
+        {
+          "ts": 1795107210063,
+          "rssKb": 344716,
+          "heapUsedKb": 16085
+        },
+        {
+          "ts": 1795107215060,
+          "rssKb": 344716,
+          "heapUsedKb": 16087
+        },
+        {
+          "ts": 1795107220066,
+          "rssKb": 344716,
+          "heapUsedKb": 16087
+        },
+        {
+          "ts": 1795107225061,
+          "rssKb": 344716,
+          "heapUsedKb": 16087
+        },
+        {
+          "ts": 1795107230058,
+          "rssKb": 344716,
+          "heapUsedKb": 16087
+        },
+        {
+          "ts": 1795107235062,
+          "rssKb": 344716,
+          "heapUsedKb": 16087
+        },
+        {
+          "ts": 1795107240062,
+          "rssKb": 344716,
+          "heapUsedKb": 16087
+        },
+        {
+          "ts": 1795107245059,
+          "rssKb": 344716,
+          "heapUsedKb": 16088
+        },
+        {
+          "ts": 1795107250059,
+          "rssKb": 344716,
+          "heapUsedKb": 16100
+        },
+        {
+          "ts": 1795107255067,
+          "rssKb": 344716,
+          "heapUsedKb": 16100
+        },
+        {
+          "ts": 1795107260060,
+          "rssKb": 344716,
+          "heapUsedKb": 16100
+        },
+        {
+          "ts": 1795107265062,
+          "rssKb": 344716,
+          "heapUsedKb": 16100
+        },
+        {
+          "ts": 1795107270065,
+          "rssKb": 344716,
+          "heapUsedKb": 16100
+        }
+      ],
+      "heapBaselineKb": 16078,
+      "heapLastKb": 16100,
+      "heapGrowthPct": 0.1
+    }
+  ],
+  "decision": "no-rise-no-profile",
+  "completedAt": "2026-11-19T16:54:35.042Z"
+}

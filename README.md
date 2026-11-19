@@ -136,9 +136,10 @@ Semantic Scholar, CORE, OpenAlex, GitHub, Exa, Firecrawl, Tavily, Parallel,
 Keenable and TinyFish, plus a trusted self-hosted OpenDeepWiki endpoint. OpenAlex
 links to its free-key settings page. Pharol does not register accounts or request
 verification emails on their behalf. Empty fields preserve saved keys; individual
-removal, replacement and removal of all keys are available. A saved key is used by
-web search, news search and reader mode alike, and takes precedence over the
-operator's environment key. Saved keys are never returned to the UI. Old plaintext
+removal, replacement and removal of all keys are available. When a provider is used by
+search, news or reader mode, the requesting user's key takes precedence over
+operator defaults. If neither is configured, the provider uses keyless mode where
+available. Saved keys are never returned to the UI. Old plaintext
 `pharol_user_provider_config` localStorage entries are deleted on app startup;
 users must re-enter them.
 
@@ -172,6 +173,33 @@ provider's actual key. The deployment operator must be trusted with provider key
 External MCP clients can use explicit `x-pharol-*-key` headers (see
 `lib/user-provider-headers.ts`). They do not inherit another browser's cookies.
 
+### Standalone CLI
+
+From a source checkout after `npm ci`, build and install the local npm tarball:
+
+```bash
+npm run pack:cli
+npm install -g ./leviant-labs-pharol-cli-0.1.1.tgz
+pharol search --json --engines bing,duckduckgo "public transport in Lisbon"
+pharol read --json https://en.wikipedia.org/wiki/Lisbon
+```
+
+The CLI requires Node 20.18.1+ and uses `impit` (keep npm optional dependencies enabled),
+but does not install Next.js or React or need a web server. It reads optional provider
+keys from the environment. `read` uses the same service as the web reading preview
+and may send the URL to third-party extraction providers, so use public URLs only.
+Run `pharol --help` for usage and `npm run test:cli` for subprocess tests. The package
+ships search and reading previews, not a standalone MCP server.
+
+### Calling the engine from Node
+
+`runMetasearch`, `searchNews`, and `readWebpage` are Node functions in
+`lib/server-search.ts`, `lib/news-service.ts`, and `lib/reader-service.ts`.
+They take plain inputs and do not import Next.js or handle cookies. Callers supply
+`userConfig` and/or `providerDefaults` explicitly; the hosted HTTP/MCP entry points
+obtain these from the request and environment. These are internal source entry points,
+not a published SDK.
+
 ### Integrated Paper Search
 
 The existing `/api/mcp` exposes these additional in-process TypeScript tools:
@@ -200,10 +228,7 @@ and limit state are per-process; multiple replicas still share upstream quotas.
 
 ## Tests
 
-`lib/search-engine.test.ts`, `lib/mcp-tools.test.ts` and
-`lib/web-engines.test.ts`, `lib/browser-transport.test.ts`,
-`lib/provider-credentials.test.ts` and `lib/paper-tools.test.ts` use `node:test` and
-import TypeScript directly, so they run through `tsx`:
+The tests use `node:test` and import TypeScript directly through `tsx`:
 
 ```bash
 npm test

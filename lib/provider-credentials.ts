@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { extractUserProviderConfig, USER_PROVIDER_HEADER_MAP } from './user-provider-headers';
 import { sanitizeTrustedBaseUrl } from './search-engine';
+import { readOperatorProviders, type ProviderContext } from './provider-config';
 import type { UserProviderConfig } from './search-types';
 
 export const PROVIDER_COOKIE = process.env.NODE_ENV === 'production' ? '__Host-pharol-providers' : 'pharol-providers';
@@ -85,4 +86,8 @@ export function requestProviders(req: Request): UserProviderConfig {
   // can supply their own explicit provider headers without receiving browser keys.
   const cookieConfig = sameOrigin(req) ? openProviders(value) : {};
   return { ...cookieConfig, ...extractUserProviderConfig(req.headers) };
+}
+
+export function requestProviderContext(req: Request): ProviderContext {
+  return { userConfig: requestProviders(req), providerDefaults: readOperatorProviders(process.env) };
 }
