@@ -58,14 +58,31 @@ lib/instant-tools.ts          deterministic instant answers
 app/api/answer/route.ts       optional Gemini synthesis over retrieved sources
 ```
 
-Every engine is wrapped by `trackEngine()`, which records status, item count and
-latency into an `engineHealth` array that the UI renders as a per-engine strip.
-Timeouts are 3.5–4s per engine; a `429`/`402` puts that engine into a
-three-minute cooldown instead of retrying it for every query.
+Tracked engines report status, item count and latency in `engineHealth`.
+A `429`/`402` puts an engine into a three-minute cooldown rather than retrying it
+for every query. Web-adapter request deadlines include reading the response body.
 
-Search responses are cached in process memory (3 min, 100 entries) and that
-cache is bypassed entirely when the caller supplies their own API keys, so
-key-scoped results are never served to another caller.
+### Fast and Full search
+
+General web search defaults to **Fast**: Bing, DuckDuckGo, Wikipedia, Tavily, Exa
+and FreeSerp (limited to the user's enabled sources), with a shared 2.5-second
+web request budget. **Full** restores the broader set of enabled sources and
+optional news/code enrichment, with a seven-second web request budget. The
+browser control reruns the current query and remembers the mode in its URL.
+With streaming, Wikipedia search hits and GitHub repos can appear before their
+optional knowledge panel and wiki-link enrichment.
+
+Use `mode=full` on `/api/search` or `/api/search/stream`, `mode: "full"` on the
+MCP `web_search` tool, or `pharol search --mode full`. Explicit engine lists
+without a mode retain their previous behavior. Bangs and specialist verticals
+keep their own routing. Search results are cached in process memory (3 min,
+100 entries), separately by mode. Searches with user-specific provider overrides
+bypass that cache.
+
+To compare time to the first sourced batch and completed search, run
+`node --import tsx scripts/bench-search.ts --queries 4 --runs 2`. This uses public
+queries and resets the local result cache before each live engine sample; it
+does not measure browser rendering or AI answers.
 
 ## AI answers (optional)
 

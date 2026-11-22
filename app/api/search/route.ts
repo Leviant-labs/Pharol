@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runMetasearch } from '@/lib/server-search';
-import { SearchCategory, SearchRegion, TimeRange } from '@/lib/search-types';
+import { parseSearchMode, SearchCategory, SearchRegion, TimeRange } from '@/lib/search-types';
 import { requestProviderContext } from '@/lib/provider-credentials';
 
 export async function GET(req: NextRequest) {
@@ -17,6 +17,8 @@ export async function GET(req: NextRequest) {
     rawQuery,
     category,
     enginesParam,
+    mode: parseSearchMode(searchParams.get('mode')),
+    signal: req.signal,
     page: Number.isFinite(page) ? page : 1,
     timeRange,
     region,

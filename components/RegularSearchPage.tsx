@@ -24,6 +24,7 @@ import {
 import {
   AnswerFollowUpTurn,
   SearchCategory,
+  SearchMode,
   SearchResponse,
   SearchResult,
   TimeRange,
@@ -47,6 +48,8 @@ interface RegularSearchPageProps {
   query: string;
   onUpdateQuery: (q: string) => void;
   onSearch: (q: string) => void;
+  searchMode: SearchMode;
+  onChangeSearchMode?: (mode: SearchMode) => void;
   isAdvancedOpen: boolean;
   onToggleAdvanced: () => void;
   onCloseAdvanced: () => void;
@@ -75,6 +78,8 @@ export function RegularSearchPage({
   query,
   onUpdateQuery,
   onSearch,
+  searchMode,
+  onChangeSearchMode,
   isAdvancedOpen,
   onToggleAdvanced,
   onCloseAdvanced,
@@ -293,6 +298,36 @@ export function RegularSearchPage({
             Search
           </button>
         </form>
+
+        {onChangeSearchMode && (
+          <div className="mt-3 flex max-w-4xl flex-wrap items-center gap-x-3 gap-y-1.5 px-0.5 text-xs">
+            <div
+              role="group"
+              aria-label="Web search mode"
+              className="inline-flex shrink-0 items-center gap-0.5 rounded-full pharol-glass-inset p-1"
+            >
+              {(['fast', 'full'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={searchMode === mode}
+                  aria-describedby="web-search-mode-description"
+                  onClick={() => onChangeSearchMode(mode)}
+                  className={`min-h-9 rounded-full px-4 py-1.5 font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600 dark:focus-visible:outline-sky-400 ${
+                    searchMode === mode
+                      ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-950'
+                      : 'text-neutral-700 hover:bg-neutral-900/10 dark:text-neutral-200 dark:hover:bg-white/10'
+                  }`}
+                >
+                  {mode === 'fast' ? 'Fast' : 'Full'}
+                </button>
+              ))}
+            </div>
+            <p id="web-search-mode-description" className="text-neutral-600 dark:text-neutral-300">
+              Fast prioritizes speed. Full searches more enabled sources and may take longer.
+            </p>
+          </div>
+        )}
 
         {searchResponse && (
           <div className="flex items-center justify-between gap-4 text-xs text-neutral-500 dark:text-neutral-400 mt-2.5 px-0.5 max-w-4xl">

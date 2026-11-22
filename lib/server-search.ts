@@ -36,6 +36,7 @@ import { evaluateInstantUtility } from './instant-tools';
 import { searchWebEngine, WebEngineError, WEB_ENGINES } from './web-engines';
 import {
   SearchCategory,
+  SearchMode,
   SearchRegion,
   SearchResult,
   KnowledgeBox,
@@ -105,20 +106,17 @@ function buildRelatedQueries(
   return candidates.slice(0, 4);
 }
 
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 3800) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(id);
-  }
+function withDeadline(timeoutMs: number, ...parents: (AbortSignal | null | undefined)[]) {
+  return AbortSignal.any([AbortSignal.timeout(timeoutMs), ...parents.filter((signal): signal is AbortSignal => Boolean(signal))]);
 }
 
-async function callMcpSearchTool(
+function fetchWithDeadline(url: string, options: RequestInit = {}, timeoutMs = 3800) {
+  // Keep the signal attached after headers arrive, until the body is read.
+  return fetch(url, { ...options, signal: withDeadline(timeoutMs, options.signal) });
+}
+
+async function requestMcpSearchTool(
+  fetchWithTimeout: typeof fetchWithDeadline,
   engineId: string,
   endpoint: string,
   headers: Record<string, string>,
@@ -150,7 +148,8 @@ async function callMcpSearchTool(
   return parseMcpJsonRpcPayload(raw);
 }
 
-async function callSessionMcpTool(
+async function requestSessionMcpTool(
+  fetchWithTimeout: typeof fetchWithDeadline,
   engineId: string,
   endpoint: string,
   toolName: string,
@@ -214,6 +213,8 @@ export interface RunMetasearchOptions extends ProviderContext {
   rawQuery: string;
   category: SearchCategory;
   enginesParam?: string | null;
+  mode?: SearchMode;
+  signal?: AbortSignal;
   page?: number;
   timeRange?: TimeRange;
   region?: SearchRegion;
@@ -265,7 +266,16 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
 
   // Allow !bang shortcuts to steer category and/or targeted engines seamlessly
   const effectiveCategory: SearchCategory = !options.ignoreBangRouting && parsedQuery.bang?.category || options.category;
-  const bangEngines = options.ignoreBangRouting ? undefined : parsedQuery.bang?.engines;
+  const bang = options.ignoreBangRouting ? undefined : parsedQuery.bang;
+  const bangEngines = bang?.engines;
+  const fastWeb = effectiveCategory === 'all' && !bang &&
+    (options.mode ?? (options.enginesParam?.trim() ? 'full' : 'fast')) === 'fast';
+  const generalWeb = effectiveCategory === 'all' && !bang;
+  const signal = generalWeb ? withDeadline(fastWeb ? 2500 : 7000, options.signal) : options.signal;
+  const fetchWithTimeout: typeof fetchWithDeadline = (url, init = {}, timeout) =>
+    fetchWithDeadline(url, { ...init, signal: init.signal && signal ? AbortSignal.any([init.signal, signal]) : init.signal ?? signal }, timeout);
+  const callMcpSearchTool = requestMcpSearchTool.bind(null, fetchWithTimeout);
+  const callSessionMcpTool = requestSessionMcpTool.bind(null, fetchWithTimeout);
 
   const allowedEngines = bangEngines
     ? new Set(bangEngines.map((e) => e.toLowerCase()))
@@ -278,7 +288,9 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       )
     : null;
 
-  const isEngineEnabled = (eng: string) => !allowedEngines || allowedEngines.has(eng.toLowerCase());
+  const fastEngines = new Set(['bing', 'duckduckgo', 'wikipedia', 'tavily', 'exa', 'freeserp']);
+  const isEngineEnabled = (eng: string) =>
+    (!fastWeb || fastEngines.has(eng)) && (!allowedEngines || allowedEngines.has(eng));
 
   const cleanQ = parsedQuery.cleanQuery || rawQuery;
   const effectiveQuery = parsedQuery.site ? `${cleanQ} site:${parsedQuery.site}` : cleanQ;
@@ -301,6 +313,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     timeRange,
     page,
     engines: `${options.enginesParam || ''}|concept:${options.includeConceptOverview !== false}`,
+    mode: fastWeb ? 'fast' : 'full',
     providerScope,
   });
   const cached = !hasUserOverrides ? getCachedSearchResponse(cacheKey) : null;
@@ -323,6 +336,9 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
   let relatedTopics: string[] = [];
 
   const cooldownKey = (engine: string) => providerScope ? `${engine}:${providerScope}` : engine;
+  const emitBatch = () => {
+    if (!options.signal?.aborted) options.onBatch?.(buildSnapshot(false));
+  };
 
   const trackEngine = async (
     engineId: string,
@@ -354,13 +370,11 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       if (count > 0 && !enginesUsed.includes(engineId)) {
         enginesUsed.push(engineId);
       }
-      if (options.onBatch && count > 0) {
-        options.onBatch(buildSnapshot(false));
-      }
+      if (count > 0) emitBatch();
     } catch (err) {
       const isQuota = err instanceof RateLimitQuotaError || err instanceof OpenAlexError && [402, 429].includes(err.status);
       if (isQuota || err instanceof WebEngineError && err.status === 'cooldown') recordEngineRateLimit(cooldownKey(engineId));
-      const isTimeout = err instanceof Error && err.name === 'AbortError';
+      const isTimeout = err instanceof Error && ['AbortError', 'TimeoutError'].includes(err.name);
       engineHealthMap.set(engineId, {
         engine: engineId,
         label,
@@ -495,6 +509,9 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     await trackEngine('wikipedia', 'Wikipedia', async () => {
       let count = 0;
       const primaryLang = regionProfile.wikiLang || 'en';
+      // Publish plain hits first; optional panel data shares a smaller budget.
+      const enrichmentSignal = withDeadline(fastWeb ? 900 : 3000, signal);
+      const enrichmentOptions = { headers: { 'User-Agent': 'Pharol/1.0 (metasearch)' }, signal: enrichmentSignal };
 
       const tryWikiSummary = async (langCode: string, titleCandidate: string) => {
         const wikiSummaryUrl = `https://${langCode}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
@@ -502,7 +519,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         )}`;
         const res = await fetchWithTimeout(
           wikiSummaryUrl,
-          { headers: { 'User-Agent': 'Pharol/1.0 (metasearch)' } },
+          enrichmentOptions,
           2800
         );
         if (!res.ok) return null;
@@ -538,7 +555,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
           )}`;
           const res = await fetchWithTimeout(
             mediaUrl,
-            { headers: { 'User-Agent': 'Pharol/1.0 (metasearch)' } },
+            enrichmentOptions,
             2000
           );
           if (res.ok) {
@@ -594,7 +611,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
               `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(
                 data.title || cleanQ
               )}&language=${langCode}&limit=1&format=json`,
-              { headers: { 'User-Agent': 'Pharol/1.0 (metasearch)' } },
+              enrichmentOptions,
               1800
             );
             if (wdSearchRes.ok) {
@@ -607,7 +624,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
               `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${encodeURIComponent(
                 qid
               )}&props=claims&format=json`,
-              { headers: { 'User-Agent': 'Pharol/1.0 (metasearch)' } },
+              enrichmentOptions,
               1800
             );
             if (wdEntRes.ok) {
@@ -647,16 +664,10 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         }
       };
 
-      let hit: { data: any; langCode: string } | null = null;
-      if (page === 1) {
-        hit = await tryWikiSummary(primaryLang, cleanQ);
-        if (!hit && primaryLang !== 'en') {
-          hit = await tryWikiSummary('en', cleanQ);
-        }
-        if (hit) {
-          await populateKnowledgeBoxFromHit(hit);
-        }
-      }
+      const exactSummary = page === 1
+        ? (async () => (await tryWikiSummary(primaryLang, cleanQ)) ||
+            (primaryLang !== 'en' ? await tryWikiSummary('en', cleanQ) : null))().catch(() => null)
+        : null;
 
       const srOffset = (page - 1) * 5;
       const searchWikiLang = async (langCode: string) => {
@@ -702,14 +713,18 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         count++;
       }
 
-      // If exact-title summary missed, resolve KnowledgeBox from the top Wikipedia search hit
-      if (page === 1 && !hit && wikiPages.length > 0) {
-        const topTitle = wikiPages[0].title;
-        if (topTitle) {
-          const resolvedHit = await tryWikiSummary(usedLang, topTitle);
-          if (resolvedHit) {
-            await populateKnowledgeBoxFromHit(resolvedHit);
+      if (count > 0) emitBatch();
+      if (exactSummary) {
+        try {
+          const hit = (await exactSummary) || (wikiPages[0]?.title && !enrichmentSignal.aborted
+            ? await tryWikiSummary(usedLang, wikiPages[0].title)
+            : null);
+          if (hit) {
+            await populateKnowledgeBoxFromHit(hit);
+            if (!count) emitBatch();
           }
+        } catch {
+          // Keep the already-published Wikipedia hits if enrichment fails.
         }
       }
 
@@ -779,7 +794,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         parsedQuery.inTitle ? `intitle:"${parsedQuery.inTitle}"` : '',
       ].filter(Boolean).join(' ');
       const results = await searchWebEngine(engine, {
-        query, page, region: regionProfile.code, timeRange,
+        query, page, region: regionProfile.code, timeRange, signal,
       });
       aggregatedResults.push(...results);
       return results.length;
@@ -1037,29 +1052,18 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     const subTasks: Promise<void>[] = [];
     const discoveredRepoSlugs: string[] = searchIntent.repoSlug ? [searchIntent.repoSlug] : [];
     const discoveredRepoStars = new Map<string, number>();
-    const deepWikiStructureCache = new Map<string, string | null>();
+    const deepWikiProbes = new Map<string, Promise<string | null>>();
+    const githubWikiCandidates: Array<{ index: number; slug: string; stars: number }> = [];
 
-    const probeDeepWikiStructure = async (slug: string): Promise<string | null> => {
-      if (deepWikiStructureCache.has(slug)) {
-        return deepWikiStructureCache.get(slug) ?? null;
-      }
-      try {
-        const structureText = await callMcpSearchTool(
-          'deepwiki',
-          'https://mcp.deepwiki.com/mcp',
-          {},
-          'read_wiki_structure',
-          { repoName: slug },
-          2400
-        );
-        const valid =
-          structureText && !isDeepWikiErrorText(structureText) ? structureText : null;
-        deepWikiStructureCache.set(slug, valid);
-        return valid;
-      } catch {
-        deepWikiStructureCache.set(slug, null);
-        return null;
-      }
+    const probeDeepWikiStructure = (slug: string) => {
+      const cached = deepWikiProbes.get(slug);
+      if (cached) return cached;
+      const request = callMcpSearchTool(
+        'deepwiki', 'https://mcp.deepwiki.com/mcp', {},
+        'read_wiki_structure', { repoName: slug }, 2400
+      ).then((text) => text && !isDeepWikiErrorText(text) ? text : null).catch(() => null);
+      deepWikiProbes.set(slug, request);
+      return request;
     };
 
     // 7A. GitHub Repositories (enriched with verified DeepWiki, star-gated Google Code Wiki, GitMCP, optional trusted OpenDeepWiki)
@@ -1076,15 +1080,6 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         const ghData = await ghRes.json();
         const items = Array.isArray(ghData.items) ? ghData.items : [];
 
-        if (isEngineEnabled('deepwiki') && page === 1 && items.length > 0) {
-          await Promise.allSettled(
-            items
-              .slice(0, 3)
-              .filter((it: any) => Boolean(it?.full_name))
-              .map((it: any) => probeDeepWikiStructure(it.full_name))
-          );
-        }
-
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
           if (item.full_name) {
@@ -1093,13 +1088,12 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
             }
             discoveredRepoStars.set(item.full_name, Number(item.stargazers_count || 0));
           }
-          const verifiedDW = deepWikiStructureCache.has(item.full_name)
-            ? Boolean(deepWikiStructureCache.get(item.full_name))
-            : undefined;
+          const verifyWiki = isEngineEnabled('deepwiki') && page === 1 && i < 3 && item.full_name;
           const wikiLinks = buildRepoWikiLinks(item.full_name, trustedOpenDeepWiki || undefined, {
             stars: item.stargazers_count,
-            deepWikiVerified: verifiedDW,
+            ...(verifyWiki ? { deepWikiVerified: false } : {}),
           });
+          if (verifyWiki) githubWikiCandidates.push({ index: aggregatedResults.length, slug: item.full_name, stars: item.stargazers_count });
           const wikiUrls =
             wikiLinks.deepwiki || wikiLinks.googleCodeWiki || wikiLinks.openDeepWiki
               ? {
@@ -1489,6 +1483,19 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       const targetSlug = discoveredRepoSlugs[0];
       const followUps: Promise<void>[] = [];
 
+      if (githubWikiCandidates.length) {
+        followUps.push(Promise.all(githubWikiCandidates.map(async ({ index, slug, stars }) => {
+          if (!await probeDeepWikiStructure(slug)) return;
+          const links = buildRepoWikiLinks(slug, trustedOpenDeepWiki || undefined, { stars, deepWikiVerified: true });
+          const result = aggregatedResults[index];
+          aggregatedResults[index] = { ...result, wikiUrls: {
+            ...result.wikiUrls,
+            ...(links.deepwiki ? { deepwiki: links.deepwiki } : {}),
+            ...(links.googleCodeWiki ? { googleCodeWiki: links.googleCodeWiki } : {}),
+          } };
+        })).then(() => emitBatch()));
+      }
+
       if (isEngineEnabled('deepwiki') && page === 1 && targetSlug) {
         followUps.push(
           trackEngine('deepwiki', 'DeepWiki & Code Wiki', async () => {
@@ -1580,6 +1587,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
           trackEngine('gitmcp', 'GitMCP Docs', async () => {
             let owner: string | undefined;
             let repo: string | undefined;
+            let sessionId: string | null = null;
             if (targetSlug && targetSlug.includes('/')) {
               [owner, repo] = targetSlug.split('/');
             } else {
@@ -1592,6 +1600,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
                   { library: libCandidate },
                   3000
                 );
+                sessionId = mapRes.sessionId;
                 const slugMatch = mapRes.text?.match(/\b([a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+)\b/);
                 if (slugMatch?.[1]) {
                   [owner, repo] = slugMatch[1].split('/');
@@ -1605,7 +1614,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
               'https://gitmcp.io/docs',
               'search_generic_documentation',
               { owner, repo, query: cleanQ },
-              3800
+              3800,
+              sessionId
             );
             const slug = `${owner}/${repo}`;
             const gitmcpUrl = `https://gitmcp.io/${slug}`;
@@ -2800,18 +2810,18 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       firecrawlTask(),
       freeserpTask(),
       keenableTask(),
-      tinyfishTask(),
-      newsTask(),
-      codeTask()
+      tinyfishTask()
     );
-    if (searchIntent.isScience) {
+    if (!fastWeb) tasks.push(newsTask(), codeTask());
+    if (!fastWeb && searchIntent.isScience) {
       tasks.push(scienceTask());
     }
   }
 
   await Promise.allSettled(tasks);
   const finalResponse = buildSnapshot(true);
-  if (!hasUserOverrides) {
+  if (!hasUserOverrides && !options.signal?.aborted &&
+      (finalResponse.results.some((r) => !r.id.startsWith('fallback-')) || finalResponse.instantAnswer)) {
     setCachedSearchResponse(cacheKey, finalResponse);
   }
   return finalResponse;

@@ -17,6 +17,7 @@ export function buildSearchCacheKey(params: {
   page: number;
   engines: string;
   providerScope?: string;
+  mode?: 'fast' | 'full';
 }): string {
   return JSON.stringify([
     params.query.trim().toLowerCase(),
@@ -25,6 +26,7 @@ export function buildSearchCacheKey(params: {
     params.timeRange,
     params.page,
     params.engines,
+    params.mode || 'full',
     params.providerScope || '',
   ]);
 }

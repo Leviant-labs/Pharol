@@ -13,6 +13,7 @@ import { PrivacyModal } from '@/components/PrivacyModal';
 import { parseSearchSyntax } from '@/lib/search-engine';
 import {
   SearchCategory,
+  SearchMode,
   SearchResponse,
   SearchResult,
   LocalHistoryItem,
@@ -53,6 +54,7 @@ export default function HomePage() {
   const [query, setQuery] = useState('');
   const [activeQuery, setActiveQuery] = useState('');
   const [category, setCategory] = useState<SearchCategory>('all');
+  const [searchMode, setSearchMode] = useState<SearchMode>('fast');
   const [isSearching, setIsSearching] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchResponse, setSearchResponse] = useState<SearchResponse | null>(null);
@@ -71,7 +73,7 @@ export default function HomePage() {
   const answerReqRef = useRef(0);
   const streamAbortRef = useRef<AbortController | null>(null);
   const searchReqIdRef = useRef(0);
-  const initializedRef = useRef(false);
+  const activeSearchParamsRef = useRef<URLSearchParams | null>(null);
 
   // Advanced search options (persisted locally)
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
@@ -134,9 +136,9 @@ export default function HomePage() {
             instantAnswer: searchData.instantAnswer,
           }),
         });
-        if (res.ok && reqId === answerReqRef.current) {
+        if (res.ok) {
           const ans: UnifiedAnswer = await res.json();
-          setUnifiedAnswer(ans);
+          if (reqId === answerReqRef.current) setUnifiedAnswer(ans);
         }
       } catch {
         // ignore
@@ -155,7 +157,8 @@ export default function HomePage() {
       searchCategory?: SearchCategory,
       overrideTimeRange?: TimeRange,
       overrideEngines?: string[],
-      overrideRegion?: SearchRegion
+      overrideRegion?: SearchRegion,
+      { mode = searchMode, restoreUrl = false }: { mode?: SearchMode; restoreUrl?: boolean } = {}
     ) => {
       const trimmed = searchQuery.trim();
       if (!trimmed) return;
@@ -167,11 +170,13 @@ export default function HomePage() {
       const controller = new AbortController();
       streamAbortRef.current = controller;
       const reqId = ++searchReqIdRef.current;
+      ++answerReqRef.current;
 
       const parsed = parseSearchSyntax(trimmed);
       const effectiveCategory: SearchCategory = parsed.bang
         ? parsed.bang.category
         : searchCategory ?? category;
+      const isGeneralSearch = effectiveCategory === 'all' && !parsed.bang;
       const effectiveTimeRange = overrideTimeRange ?? timeRange;
       const effectiveEngines = overrideEngines ?? activeEngines;
       const effectiveRegion = overrideRegion ?? region;
@@ -182,6 +187,7 @@ export default function HomePage() {
       setIsSearching(true);
       setActiveQuery(trimmed);
       setCategory(effectiveCategory);
+      if (isGeneralSearch) setSearchResponse(null);
       setUnifiedAnswer(null);
       setAnswerLoading(false);
       setFollowUpTurns([]);
@@ -195,7 +201,25 @@ export default function HomePage() {
       const url = new URL(window.location.href);
       url.searchParams.set('q', trimmed);
       url.searchParams.set('category', effectiveCategory);
-      window.history.pushState({}, '', url.toString());
+      url.searchParams.set('mode', mode);
+      if (url.href !== window.location.href) {
+        if (restoreUrl) window.history.replaceState({}, '', url);
+        else window.history.pushState({}, '', url);
+      }
+
+      const searchParams = new URLSearchParams({
+        q: trimmed,
+        category: effectiveCategory,
+        page: '1',
+        timeRange: effectiveTimeRange,
+        region: effectiveRegion,
+        lang: browserLang,
+      });
+      if (effectiveCategory === 'all' || effectiveCategory === 'code' || effectiveCategory === 'science') {
+        searchParams.set('engines', effectiveEngines.join(','));
+      }
+      if (isGeneralSearch) searchParams.set('mode', mode);
+      activeSearchParamsRef.current = searchParams;
 
       try {
         if (effectiveCategory === 'news') {
@@ -218,16 +242,7 @@ export default function HomePage() {
           return;
         }
 
-        const enginesQuery =
-          effectiveCategory === 'all' || effectiveCategory === 'code' || effectiveCategory === 'science'
-            ? `&engines=${encodeURIComponent(effectiveEngines.join(','))}`
-            : '';
-
-        const streamUrl = `/api/search/stream?q=${encodeURIComponent(
-          trimmed
-        )}&category=${effectiveCategory}&page=1&timeRange=${effectiveTimeRange}${enginesQuery}${regionParams}`;
-
-        const res = await fetch(streamUrl, {
+        const res = await fetch(`/api/search/stream?${searchParams}`, {
           signal: controller.signal,
         });
         if (!res.ok || !res.body) {
@@ -302,27 +317,26 @@ export default function HomePage() {
         }
 
         if (reqId === searchReqIdRef.current) {
+          if (!finalPayload) throw new Error('Search stream ended without a final response');
           setLoading(false);
-          if (finalPayload) {
-            saveLocalHistoryItem(trimmed, effectiveCategory, finalPayload.totalResults);
-            setHistory(getLocalHistory());
-            if (
-              (effectiveCategory === 'all' || effectiveCategory === 'science') &&
-              finalPayload.results.length > 0 &&
-              !(
-                finalPayload.instantAnswer?.kind &&
-                finalPayload.instantAnswer.kind !== 'encyclopedia'
-              )
-            ) {
-              const finalTopKey = finalPayload.results
-                .slice(0, 3)
-                .map((r) => r.url)
-                .join('|');
-              if (!earlyAnswerTriggered) {
-                fetchUnifiedAnswer(finalPayload, false);
-              } else if (finalTopKey !== earlyAnswerTopKey) {
-                fetchUnifiedAnswer(finalPayload, true);
-              }
+          saveLocalHistoryItem(trimmed, effectiveCategory, finalPayload.totalResults);
+          setHistory(getLocalHistory());
+          if (
+            (effectiveCategory === 'all' || effectiveCategory === 'science') &&
+            finalPayload.results.length > 0 &&
+            !(
+              finalPayload.instantAnswer?.kind &&
+              finalPayload.instantAnswer.kind !== 'encyclopedia'
+            )
+          ) {
+            const finalTopKey = finalPayload.results
+              .slice(0, 3)
+              .map((r) => r.url)
+              .join('|');
+            if (!earlyAnswerTriggered) {
+              fetchUnifiedAnswer(finalPayload, false);
+            } else if (finalTopKey !== earlyAnswerTopKey) {
+              fetchUnifiedAnswer(finalPayload, true);
             }
           }
         }
@@ -331,20 +345,10 @@ export default function HomePage() {
         // Fallback to standard JSON search endpoint if streaming fails
         if (reqId === searchReqIdRef.current && effectiveCategory !== 'news') {
           try {
-            const enginesQuery =
-              effectiveCategory === 'all' || effectiveCategory === 'code' || effectiveCategory === 'science'
-                ? `&engines=${encodeURIComponent(effectiveEngines.join(','))}`
-                : '';
-            const browserLangFallback =
-              typeof navigator !== 'undefined' ? navigator.language || '' : '';
-            const fallbackRes = await fetch(
-              `/api/search?q=${encodeURIComponent(
-                trimmed
-              )}&category=${effectiveCategory}&page=1&timeRange=${effectiveTimeRange}${enginesQuery}&region=${encodeURIComponent(effectiveRegion)}&lang=${encodeURIComponent(browserLangFallback)}`,
-              { signal: controller.signal }
-            );
-            if (fallbackRes.ok && reqId === searchReqIdRef.current) {
+            const fallbackRes = await fetch(`/api/search?${searchParams}`, { signal: controller.signal });
+            if (fallbackRes.ok) {
               const data: SearchResponse = await fallbackRes.json();
+              if (reqId !== searchReqIdRef.current) return;
               setSearchResponse(data);
               setCurrentPage(data.page || 1);
               setHasMore(Boolean(data.hasMore));
@@ -369,28 +373,31 @@ export default function HomePage() {
         }
       }
     },
-    [category, timeRange, activeEngines, region, fetchUnifiedAnswer]
+    [category, timeRange, activeEngines, region, searchMode, fetchUnifiedAnswer]
   );
 
+  const isGeneralSearch = category === 'all' && !parseSearchSyntax(activeQuery).bang;
+
+  const handleChangeSearchMode = (mode: SearchMode) => {
+    if (!isGeneralSearch || !activeQuery || mode === searchMode) return;
+    setSearchMode(mode);
+    executeSearch(activeQuery, 'all', undefined, undefined, undefined, { mode });
+  };
+
   const handleLoadMore = useCallback(async () => {
-    if (!activeQuery || loadingMore || !hasMore) return;
+    if (!activeSearchParamsRef.current || loadingMore || !hasMore) return;
     const nextPage = currentPage + 1;
+    const reqId = searchReqIdRef.current;
+    const signal = streamAbortRef.current?.signal;
+    const searchParams = new URLSearchParams(activeSearchParamsRef.current);
+    searchParams.set('page', String(nextPage));
     setLoadingMore(true);
 
     try {
-      const enginesQuery =
-        category === 'all' || category === 'code' || category === 'science'
-          ? `&engines=${encodeURIComponent(activeEngines.join(','))}`
-          : '';
-      const browserLang = typeof navigator !== 'undefined' ? navigator.language || '' : '';
-      const res = await fetch(
-        `/api/search?q=${encodeURIComponent(
-          activeQuery
-        )}&category=${category}&page=${nextPage}&timeRange=${timeRange}${enginesQuery}&region=${encodeURIComponent(region)}&lang=${encodeURIComponent(browserLang)}`,
-        { cache: 'no-store' }
-      );
+      const res = await fetch(`/api/search?${searchParams}`, { cache: 'no-store', signal });
       if (res.ok) {
         const data: SearchResponse = await res.json();
+        if (reqId !== searchReqIdRef.current) return;
         setSearchResponse((prev) => {
           if (!prev) return data;
           const seen = new Set(
@@ -419,9 +426,9 @@ export default function HomePage() {
     } catch {
       // ignore
     } finally {
-      setLoadingMore(false);
+      if (reqId === searchReqIdRef.current) setLoadingMore(false);
     }
-  }, [activeQuery, category, currentPage, hasMore, loadingMore, activeEngines, timeRange, region]);
+  }, [currentPage, hasMore, loadingMore]);
 
   const handleChangeTimeRange = (newRange: TimeRange) => {
     setTimeRange(newRange);
@@ -458,9 +465,6 @@ export default function HomePage() {
   }, [executeSearch]);
 
   useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-
     const frame = requestAnimationFrame(() => {
       const savedTheme = getStoredTheme();
       setTheme(savedTheme);
@@ -487,12 +491,15 @@ export default function HomePage() {
       const params = new URLSearchParams(window.location.search);
       const urlQ = params.get('q');
       const urlCat = params.get('category') as SearchCategory;
+      const mode = params.get('mode') === 'full' ? 'full' : 'fast';
+      setSearchMode(mode);
 
       if (urlQ) {
         setQuery(urlQ);
-        if (urlCat) setCategory(urlCat);
-        setIsSearching(true);
-        executeSearchRef.current(urlQ, urlCat || 'all', storedRange, storedEngines, storedRegion);
+        executeSearchRef.current(urlQ, urlCat || 'all', storedRange, storedEngines, storedRegion, {
+          mode,
+          restoreUrl: true,
+        });
       }
     });
 
@@ -500,12 +507,19 @@ export default function HomePage() {
       const p = new URLSearchParams(window.location.search);
       const qVal = p.get('q');
       const catVal = (p.get('category') as SearchCategory) || 'all';
+      const mode = p.get('mode') === 'full' ? 'full' : 'fast';
+      setSearchMode(mode);
       if (qVal) {
         setQuery(qVal);
-        setCategory(catVal);
-        setIsSearching(true);
-        executeSearchRef.current(qVal, catVal);
+        executeSearchRef.current(qVal, catVal, undefined, undefined, undefined, {
+          mode,
+          restoreUrl: true,
+        });
       } else {
+        streamAbortRef.current?.abort();
+        ++searchReqIdRef.current;
+        ++answerReqRef.current;
+        setCategory(catVal);
         setIsSearching(false);
         setSearchResponse(null);
         setQuery('');
@@ -548,9 +562,9 @@ export default function HomePage() {
   };
 
   const handleGoHome = () => {
-    if (streamAbortRef.current) {
-      streamAbortRef.current.abort();
-    }
+    streamAbortRef.current?.abort();
+    ++searchReqIdRef.current;
+    ++answerReqRef.current;
     setIsSearching(false);
     setSearchResponse(null);
     setNewsResults([]);
@@ -688,6 +702,7 @@ export default function HomePage() {
 
   const handleAskFollowUp = async (question: string) => {
     if (!searchResponse || !question.trim()) return;
+    const reqId = searchReqIdRef.current;
     setFollowUpLoading(true);
     try {
       const res = await fetch('/api/answer', {
@@ -704,12 +719,12 @@ export default function HomePage() {
       });
       if (res.ok) {
         const turn: AnswerFollowUpTurn = await res.json();
-        setFollowUpTurns((prev) => [...prev, turn]);
+        if (reqId === searchReqIdRef.current) setFollowUpTurns((prev) => [...prev, turn]);
       }
     } catch {
       // ignore
     } finally {
-      setFollowUpLoading(false);
+      if (reqId === searchReqIdRef.current) setFollowUpLoading(false);
     }
   };
 
@@ -731,6 +746,8 @@ export default function HomePage() {
         query={query}
         onUpdateQuery={setQuery}
         onSearch={(q) => executeSearch(q, 'all')}
+        searchMode={searchMode}
+        onChangeSearchMode={isGeneralSearch ? handleChangeSearchMode : undefined}
         isAdvancedOpen={isAdvancedOpen}
         onToggleAdvanced={() => setIsAdvancedOpen(!isAdvancedOpen)}
         onCloseAdvanced={() => setIsAdvancedOpen(false)}

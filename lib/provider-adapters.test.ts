@@ -138,6 +138,115 @@ test('unconfigured providers keep keyless behavior and hosted OpenAlex receives 
   assert.equal(header('api.openalex.org/rate-limit', 'authorization'), 'Bearer operator-openalex');
 });
 
+test('fast web limits fan-out, keeps its own cache, and preserves explicit selections and bangs', async (t) => {
+  clearSearchCache();
+  t.after(clearSearchCache);
+  const oldTransport = process.env.PHAROL_WEB_TRANSPORT;
+  process.env.PHAROL_WEB_TRANSPORT = 'fetch';
+  t.after(() => { if (oldTransport === undefined) delete process.env.PHAROL_WEB_TRANSPORT; else process.env.PHAROL_WEB_TRANSPORT = oldTransport; });
+  const hosts = new Set<string>();
+  t.mock.method(globalThis, 'fetch', async (input: string | URL) => {
+    const url = new URL(input);
+    hosts.add(url.host);
+    if (url.host === 'api.tavily.com') {
+      return Response.json({ results: [{ title: 'Light rail fixture', url: 'https://example.org/rail' }] });
+    }
+    return new Response(null, { status: 503 });
+  });
+  const options = { rawQuery: 'light rail timetables', category: 'all' as const, region: 'global' as const };
+  const fast = await runMetasearch(options);
+  assert.ok(fast.results.some(({ engine }) => engine === 'tavily'));
+  assert.deepEqual([...hosts].sort(), ['api.duckduckgo.com', 'api.tavily.com', 'en.wikipedia.org', 'freeserp.ai', 'html.duckduckgo.com', 'mcp.exa.ai', 'www.bing.com']);
+  assert.equal((await runMetasearch(options)).cacheHit, true);
+  hosts.clear();
+  assert.notEqual((await runMetasearch({ ...options, mode: 'full' })).cacheHit, true);
+  assert.ok(hosts.has('search.parallel.ai'));
+  assert.ok(hosts.has('api.github.com'));
+  hosts.clear();
+  await runMetasearch({ ...options, enginesParam: 'parallel' });
+  assert.ok(hosts.has('search.parallel.ai'));
+  hosts.clear();
+  const bang = { ...options, rawQuery: '!wiki light rail' };
+  await runMetasearch({ ...bang, mode: 'fast', userConfig: { exaApiKey: 'fixture' } });
+  const fastBangHosts = [...hosts].sort();
+  assert.ok(fastBangHosts.includes('en.wikipedia.org'));
+  assert.ok(!fastBangHosts.includes('mcp.exa.ai'));
+  hosts.clear();
+  await runMetasearch({ ...bang, mode: 'full', userConfig: { exaApiKey: 'fixture' } });
+  assert.deepEqual([...hosts].sort(), fastBangHosts);
+});
+
+test('Wikipedia and GitHub hits stream before optional enrichment finishes', async (t) => {
+  clearSearchCache();
+  t.after(clearSearchCache);
+  let releaseWiki!: () => void;
+  let releaseDeepWiki!: () => void;
+  const wikiGate = new Promise<void>((resolve) => { releaseWiki = resolve; });
+  const deepWikiGate = new Promise<void>((resolve) => { releaseDeepWiki = resolve; });
+  let wikiReleased = false;
+  let deepWikiReleased = false;
+  let firstWiki = false;
+  let firstGithub = false;
+  const summary = { title: 'Light Rail', type: 'standard', extract: 'Some detail about public transit.' };
+  t.mock.method(globalThis, 'fetch', async (input: string | URL) => {
+    const url = new URL(input);
+    if (url.host === 'en.wikipedia.org' && url.pathname.includes('/summary/')) {
+      await wikiGate;
+      return Response.json(summary);
+    }
+    if (url.host === 'en.wikipedia.org' && url.searchParams.get('generator') === 'search') {
+      return Response.json({ query: { pages: { one: { pageid: 1, title: 'Light Rail', extract: 'Transit fixture' } } } });
+    }
+    if (url.host === 'api.github.com') {
+      return Response.json({ items: [{ id: 1, full_name: 'fixtures/transit', html_url: 'https://github.com/fixtures/transit', description: 'Transit fixture', stargazers_count: 10 }] });
+    }
+    if (url.host === 'mcp.deepwiki.com') {
+      await deepWikiGate;
+      return Response.json({ result: { content: [{ type: 'text', text: 'Available pages\nArchitecture\nService design' }] } });
+    }
+    return new Response(null, { status: 503 });
+  });
+  const emergency = setTimeout(() => {
+    wikiReleased = deepWikiReleased = true;
+    releaseWiki(); releaseDeepWiki();
+  }, 500);
+  t.after(() => clearTimeout(emergency));
+  const result = await runMetasearch({ rawQuery: 'light rail', category: 'all', region: 'global', enginesParam: 'wikipedia,github,deepwiki',
+    onBatch: ({ results }) => {
+      if (!wikiReleased && results.some(({ engine }) => engine === 'wikipedia')) {
+        firstWiki = true; wikiReleased = true; releaseWiki();
+      }
+      if (!deepWikiReleased && results.some(({ engine }) => engine === 'github')) {
+        firstGithub = true; deepWikiReleased = true; releaseDeepWiki();
+      }
+    },
+  });
+  assert.equal(firstWiki, true);
+  assert.equal(firstGithub, true);
+  assert.equal(result.knowledgeBox?.title, summary.title);
+  assert.equal(result.results.find(({ engine }) => engine === 'github')?.wikiUrls?.deepwiki, 'https://deepwiki.com/fixtures/transit');
+});
+
+test('fast search aborts an upstream body that stalls after headers', async (t) => {
+  clearSearchCache();
+  t.after(clearSearchCache);
+  let deadlineReason: unknown;
+  t.mock.method(globalThis, 'fetch', async (_input: string | URL, init?: RequestInit) => {
+    const response = new ReadableStream({ start(controller) {
+      const fallback = setTimeout(() => controller.error(new Error('deadline did not cover the body')), 5500);
+      init?.signal?.addEventListener('abort', () => {
+        deadlineReason = init.signal?.reason;
+        clearTimeout(fallback);
+        controller.error(deadlineReason);
+      }, { once: true });
+    } });
+    return new Response(response);
+  });
+  const result = await runMetasearch({ rawQuery: 'deadline fixture', category: 'all', mode: 'fast', enginesParam: 'tavily', region: 'global' });
+  assert.equal((deadlineReason as Error | undefined)?.name, 'TimeoutError');
+  assert.equal(result.engineHealth?.find(({ engine }) => engine === 'tavily')?.status, 'timeout');
+});
+
 test('embedded callers with different operator defaults do not share search results', async (t) => {
   clearSearchCache();
   t.after(clearSearchCache);

@@ -40,6 +40,11 @@ export const SEARX_MCP_TOOLS: McpToolDefinition[] = [
           enum: ['all', 'day', 'week', 'month', 'year'],
           description: 'Optional freshness window.',
         },
+        mode: {
+          type: 'string',
+          enum: ['fast', 'full'],
+          description: 'General web search breadth. Fast is the default unless engines are explicitly selected; full searches more sources.',
+        },
         engines: {
           type: 'array',
           items: { type: 'string' },

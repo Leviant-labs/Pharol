@@ -4,7 +4,7 @@ import { requestProviderContext } from '@/lib/provider-credentials';
 import { searchNews } from '@/lib/news-service';
 import { readWebpage } from '@/lib/reader-service';
 import { runPaperTool, PAPER_TOOL_NAMES } from '@/lib/paper-tools';
-import { NewsAccessFilter, SearchCategory, SearchRegion, TimeRange } from '@/lib/search-types';
+import { NewsAccessFilter, parseSearchMode, SearchCategory, SearchRegion, TimeRange } from '@/lib/search-types';
 import {
   SEARX_MCP_SERVER_INFO,
   SEARX_MCP_TOOLS,
@@ -123,6 +123,8 @@ export async function POST(req: NextRequest) {
           category,
           timeRange,
           enginesParam,
+          mode: parseSearchMode(args.mode),
+          signal: req.signal,
           page,
           region,
           acceptLanguage,
