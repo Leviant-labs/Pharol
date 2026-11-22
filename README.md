@@ -95,7 +95,7 @@ own search/grounding tool is never called, so "grounded" here means *constrained
 to the supplied snippets and excerpts*, not *verified against Google*.
 
 ```ts
-model: 'gemini-4-hydrogen'                 // hardcoded, no env override
+model: process.env.GEMINI_MODEL || 'gemini-4-hydrogen'
 thinkingConfig: { thinkingLevel: LOW }
 responseMimeType: 'application/json'       // schema-enforced
 ```
@@ -298,10 +298,12 @@ tool schema.
   nothing, Pharol injects two hand-built entries pointing at Wikipedia and
   GitHub search. They are navigational aids, not search hits, and are labeled
   with their engine.
-- **`/api/reader` and `/api/mcp` are unauthenticated.** The reader fetches a
-  caller-supplied URL. Before exposing this deployment publicly, add a host
-  allowlist / private-range block to `app/api/reader/route.ts` and put auth or
-  rate limiting in front of `/api/mcp`.
+- **Reader URL guard & keyless MCP.** `/api/reader`, CLI `read`, and MCP
+  `read_webpage` reject non-HTTP(S) schemes, embedded credentials,
+  localhost/internal hostnames, private/loopback/metadata IP ranges, and unsafe
+  redirects, and cap extracted responses at 4 MB. `/api/mcp` stays intentionally
+  keyless; if you expose an instance publicly, add reverse-proxy rate limiting
+  in front of `/api/mcp` and `/api/reader`.
 - **`/api/answer` sends the query, snippets and page excerpts to Gemini** when a
   key is configured, and fetches the top two result URLs through `r.jina.ai`
   first. Search itself does not require it.

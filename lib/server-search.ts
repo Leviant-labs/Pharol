@@ -810,7 +810,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     await trackEngine('marginalia', 'Marginalia', async () => {
       const idxOffset = (page - 1) * 8;
       const mUrl = `https://api.marginalia.nu/public/search/${encodeURIComponent(cleanQ)}?count=8&index=${idxOffset}`;
-      const res = await fetchWithTimeout(mUrl, { headers: { 'User-Agent': 'SearXMinimal/1.0' } }, 3000);
+      const res = await fetchWithTimeout(mUrl, { headers: { 'User-Agent': 'Pharol/1.0 (metasearch)' } }, 3000);
       if (!res.ok) return 0;
       const data = await res.json();
       const results = Array.isArray(data.results) ? data.results : [];
@@ -2263,7 +2263,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         const ovUrl = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(cleanQ)}&page_size=18&page=${page}`;
         const ovRes = await fetchWithTimeout(
           ovUrl,
-          { headers: { 'User-Agent': 'SearXMinimal-Metasearch' } },
+          { headers: { 'User-Agent': 'Pharol/1.0 (metasearch)' } },
           3500
         );
         if (!ovRes.ok) return 0;

@@ -42,7 +42,10 @@ export async function GET(req: NextRequest) {
     // fallback to regional wikipedia opensearch
     try {
       const wikiUrl = `https://${regionProfile.wikiLang}.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(q)}&limit=6&namespace=0&format=json`;
-      const wikiRes = await fetch(wikiUrl);
+      const wikiRes = await fetch(wikiUrl, {
+        headers: { 'User-Agent': 'Pharol/1.0 (suggest)' },
+        signal: AbortSignal.timeout(2000),
+      });
       if (wikiRes.ok) {
         const wikiData = await wikiRes.json();
         if (Array.isArray(wikiData) && Array.isArray(wikiData[1])) {

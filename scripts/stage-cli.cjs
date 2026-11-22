@@ -5,7 +5,7 @@ const root = resolve(__dirname, '..');
 const packageDir = resolve(root, 'packages/cli');
 const sources = [
   'browser-transport', 'cli', 'instant-tools', 'openalex', 'provider-config', 'reader-service',
-  'search-engine', 'search-types', 'server-cache', 'server-search', 'web-engines',
+  'search-engine', 'search-types', 'server-cache', 'server-search', 'url-guard', 'web-engines',
 ];
 
 function copy(source, destination) {

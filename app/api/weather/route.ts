@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
       try {
         const revRes = await fetch(
           `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`,
-          { headers: { 'User-Agent': 'SearXMinimal/1.0' } }
+          { headers: { 'User-Agent': 'Pharol/1.0 (weather)' }, signal: AbortSignal.timeout(3000) }
         );
         if (revRes.ok) {
           const rev = await revRes.json();
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     // If coordinates are not provided, geocode via Open-Meteo keyless geocoding API
     if (!hasExplicitCoords) {
       const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityParam)}&count=1&language=en&format=json`;
-      const geoRes = await fetch(geoUrl, { next: { revalidate: 3600 } });
+      const geoRes = await fetch(geoUrl, { next: { revalidate: 3600 }, signal: AbortSignal.timeout(4000) });
       if (geoRes.ok) {
         const geoData = await geoRes.json();
         if (geoData.results && geoData.results.length > 0) {
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
 
     const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
 
-    const weatherRes = await fetch(weatherUrl, { next: { revalidate: 1800 } });
+    const weatherRes = await fetch(weatherUrl, { next: { revalidate: 1800 }, signal: AbortSignal.timeout(4500) });
     if (!weatherRes.ok) {
       throw new Error('Weather API error');
     }

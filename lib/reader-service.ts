@@ -2,6 +2,12 @@ import * as cheerio from 'cheerio';
 import type { ReaderBlock, ReaderContent } from './search-types';
 import { resolveProviderConfig, type ProviderContext } from './provider-config';
 import {
+  assertPublicHttpUrl,
+  fetchPublicUrl,
+  readBoundedText,
+  UnsafeUrlError,
+} from './url-guard';
+import {
   classifySourceAccess,
   decodeHtmlEntities,
   extractBingTargetUrl,
@@ -14,15 +20,13 @@ import {
 
 const BROWSER_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const MAX_READER_BYTES = 4_000_000;
 
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 6000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(id);
-  }
+function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 6000) {
+  const signal = options.signal
+    ? AbortSignal.any([AbortSignal.timeout(timeoutMs), options.signal])
+    : AbortSignal.timeout(timeoutMs);
+  return fetch(url, { ...options, signal });
 }
 
 /**
@@ -30,24 +34,36 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
  */
 async function resolveTargetUrl(rawUrl: string): Promise<string> {
   const unwrapped = extractBingTargetUrl(rawUrl);
-  if (unwrapped !== rawUrl) return unwrapped;
+  if (unwrapped !== rawUrl) {
+    await assertPublicHttpUrl(unwrapped);
+    return unwrapped;
+  }
 
   if (rawUrl.includes('news.google.com/')) {
     try {
-      const res = await fetchWithTimeout(
+      const { response: res, finalUrl } = await fetchPublicUrl(
         rawUrl,
-        { redirect: 'follow', headers: { 'User-Agent': BROWSER_UA } },
+        { headers: { 'User-Agent': BROWSER_UA } },
         4000
       );
-      if (res.url && !res.url.includes('news.google.com/')) {
-        return res.url;
+      if (finalUrl && !finalUrl.includes('news.google.com/')) {
+        await res.body?.cancel().catch(() => {});
+        await assertPublicHttpUrl(finalUrl);
+        return finalUrl;
       }
-      const html = await res.text();
+      const html = await readBoundedText(res, 1_000_000);
       const canonical = html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i)?.[1];
-      if (canonical && !canonical.includes('news.google.com/')) return canonical;
+      if (canonical && !canonical.includes('news.google.com/')) {
+        await assertPublicHttpUrl(canonical);
+        return canonical;
+      }
       const dataUrl = html.match(/data-n-au=["']([^"']+)["']/i)?.[1];
-      if (dataUrl && dataUrl.startsWith('http')) return dataUrl;
-    } catch {
+      if (dataUrl && dataUrl.startsWith('http')) {
+        await assertPublicHttpUrl(dataUrl);
+        return dataUrl;
+      }
+    } catch (error) {
+      if (error instanceof UnsafeUrlError) throw error;
       // continue with original
     }
   }
@@ -67,7 +83,7 @@ async function tryWikipediaReader(targetUrl: string): Promise<ReaderContent | nu
     const apiUrl = `https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts|pageimages|info&inprop=url&pithumbsize=1000&explaintext=1&titles=${encodeURIComponent(slug)}&format=json&redirects=1`;
     const res = await fetchWithTimeout(
       apiUrl,
-      { headers: { 'User-Agent': 'SearXMinimal/1.0 (reader)' } },
+      { headers: { 'User-Agent': 'Pharol/1.0 (reader)' } },
       4500
     );
     if (!res.ok) return null;
@@ -196,7 +212,7 @@ async function tryKeenableReader(resolvedUrl: string, key?: string): Promise<Rea
       6500
     );
     if (!res.ok) return null;
-    const raw = await res.text();
+    const raw = await readBoundedText(res, MAX_READER_BYTES);
     const inner = parseMcpJsonRpcPayload(raw);
     if (!inner) return null;
 
@@ -248,7 +264,7 @@ async function tryArxivReader(targetUrl: string): Promise<ReaderContent | null> 
   try {
     const res = await fetchWithTimeout(`https://export.arxiv.org/api/query?id_list=${encodeURIComponent(arxivId)}`, {}, 4500);
     if (!res.ok) return null;
-    const xml = await res.text();
+    const xml = await readBoundedText(res, MAX_READER_BYTES);
     const $ = cheerio.load(xml, { xmlMode: true });
     const entry = $('entry').first();
     if (entry.length === 0) return null;
@@ -307,11 +323,11 @@ async function tryGitHubReader(targetUrl: string): Promise<ReaderContent | null>
   try {
     const res = await fetchWithTimeout(
       `https://api.github.com/repos/${owner}/${repo}/readme`,
-      { headers: { 'User-Agent': 'SearXMinimal-Reader', Accept: 'application/vnd.github.raw+json' } },
+      { headers: { 'User-Agent': 'Pharol/1.0 (reader)', Accept: 'application/vnd.github.raw+json' } },
       4000
     );
     if (!res.ok) return null;
-    const md = await res.text();
+    const md = await readBoundedText(res, MAX_READER_BYTES);
     const parsed = parseJinaMarkdownToReader(`Markdown Content:\n${md}`, targetUrl);
     return {
       url: targetUrl,
@@ -394,7 +410,7 @@ async function tryDeepWikiReader(targetUrl: string): Promise<ReaderContent | nul
       7500
     );
     if (!res.ok) return await fallbackToGitHub();
-    const raw = await res.text();
+    const raw = await readBoundedText(res, MAX_READER_BYTES);
     const md = parseMcpJsonRpcPayload(raw);
     if (!md || isDeepWikiErrorText(md) || md.length < 120) {
       return await fallbackToGitHub();
@@ -601,13 +617,13 @@ async function tryJinaReader(resolvedUrl: string): Promise<ReaderContent | null>
       {
         headers: {
           Accept: 'text/plain',
-          'User-Agent': 'SearXMinimal-Reader/1.0',
+          'User-Agent': 'Pharol/1.0 (reader)',
         },
       },
       7500
     );
     if (!res.ok) return null;
-    const md = await res.text();
+    const md = await readBoundedText(res, MAX_READER_BYTES);
     if (!md || md.length < 200) return null;
 
     const parsed = parseJinaMarkdownToReader(md, resolvedUrl);
@@ -634,7 +650,7 @@ async function tryJinaReader(resolvedUrl: string): Promise<ReaderContent | null>
 }
 
 export class ReaderError extends Error {
-  constructor(public readonly code: 'missing_url' | 'unavailable', message: string) {
+  constructor(public readonly code: 'missing_url' | 'invalid_url' | 'unavailable', message: string) {
     super(message);
     this.name = 'ReaderError';
   }
@@ -646,8 +662,9 @@ export async function readWebpage(url: string, context: ProviderContext = {}): P
   const providers = resolveProviderConfig(context);
 
   try {
+    await assertPublicHttpUrl(rawUrl);
     const targetUrl = await resolveTargetUrl(rawUrl);
-    const parsedTarget = new URL(targetUrl);
+    const parsedTarget = await assertPublicHttpUrl(targetUrl);
     const domain = parsedTarget.hostname.replace(/^www\./, '');
 
     // 1. Direct Media / Embeds / PDFs
@@ -733,7 +750,7 @@ export async function readWebpage(url: string, context: ProviderContext = {}): P
     let httpStatus = 0;
 
     try {
-      const res = await fetchWithTimeout(
+      const { response: res, finalUrl } = await fetchPublicUrl(
         targetUrl,
         {
           headers: {
@@ -749,25 +766,27 @@ export async function readWebpage(url: string, context: ProviderContext = {}): P
       if (res.ok) {
         const contentType = res.headers.get('content-type') || '';
         if (contentType.includes('application/pdf')) {
+          await res.body?.cancel().catch(() => {});
           return {
             url: rawUrl,
-            resolvedUrl: targetUrl,
+            resolvedUrl: finalUrl,
             title: 'Document PDF',
             siteName: domain,
             type: 'pdf',
-            pdfUrl: targetUrl,
+            pdfUrl: finalUrl,
             paragraphs: ['PDF stream ready for download or viewing.'],
             readingTimeMinutes: 5,
             accessType: initialAccess,
           };
         }
 
-        const html = await res.text();
+        const html = await readBoundedText(res, MAX_READER_BYTES);
         isSchemaSubscription = hasSubscriptionJsonLd(html);
-        directResult = extractFromHtml(html, res.url || targetUrl);
+        directResult = extractFromHtml(html, finalUrl || targetUrl);
       }
-    } catch {
-      // Fall through cleanly
+    } catch (error) {
+      if (error instanceof UnsafeUrlError) throw error;
+      // Fall through cleanly on upstream fetch errors or oversized HTML
     }
 
     const detectedAccess =
@@ -854,7 +873,11 @@ export async function readWebpage(url: string, context: ProviderContext = {}): P
       accessBlocked: true,
       isFallback: true,
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof ReaderError) throw error;
+    if (error instanceof UnsafeUrlError) {
+      throw new ReaderError('invalid_url', error.message);
+    }
     throw new ReaderError('unavailable', 'Unable to render readable content');
   }
 }
