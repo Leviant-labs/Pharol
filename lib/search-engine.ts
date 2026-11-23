@@ -431,6 +431,7 @@ const ENGINE_WEIGHTS: Record<string, number> = {
   marginalia: 0.92,
   'serper-news': 1.22,
   'brave-news': 1.22,
+  'exa-news': 1.2,
   'duckduckgo-news': 1.2,
   'bing-news': 1.15,
   'firecrawl-news': 1.18,

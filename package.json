@@ -11,7 +11,7 @@
     "test:cli": "npm run build:cli && node --test scripts/cli.test.cjs",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --import tsx --test lib/search-engine.test.ts lib/mcp-tools.test.ts lib/web-engines.test.ts lib/browser-transport.test.ts lib/provider-credentials.test.ts lib/provider-adapters.test.ts lib/paper-tools.test.ts lib/url-guard.test.ts",
+    "test": "node --import tsx --test lib/search-engine.test.ts lib/mcp-tools.test.ts lib/web-engines.test.ts lib/browser-transport.test.ts lib/provider-credentials.test.ts lib/provider-adapters.test.ts lib/paper-tools.test.ts lib/url-guard.test.ts lib/news-service.test.ts",
     "clean": "rm -rf .next"
   },
   "engines": {

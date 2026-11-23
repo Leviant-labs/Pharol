@@ -219,6 +219,8 @@ export async function POST(req: NextRequest) {
           topic: args.topic ? String(args.topic) : undefined,
           region: args.region ? String(args.region) as SearchRegion : undefined,
           access: (args.access as NewsAccessFilter) || 'free',
+          timeRange: (args.timeRange as TimeRange) || 'all',
+          signal: req.signal,
           acceptLanguage: req.headers.get('accept-language') || undefined,
           ...providerContext,
         });

@@ -16,7 +16,11 @@ SearXNG service, Python runtime or `engines.yml` is required.
   and optional keyed providers.
 - **Vertical modes**: web, images, videos, news, code, science. Each vertical
   pulls from sources that actually have that kind of data (GitHub/npm/crates/PyPI
-  for code; arXiv/OpenAlex/CrossRef/Europe PMC/PubMed for papers).
+  for code; arXiv/OpenAlex/CrossRef/Europe PMC/PubMed for papers; a unified news
+  pipeline across Exa News, DuckDuckGo News, Bing News, direct publisher RSS
+  wires, Hacker News, TinyFish, Firecrawl, Tavily, and optional Serper/Brave with
+  upstream + post-fetch recency filtering, 2-minute caching, and per-source
+  health telemetry).
 - **Result fusion**: RRF over per-engine rank positions, with a consensus bonus
   when independent engines return the same normalized URL, plus recency, lexical,
   regional-TLD, citation and repository-star boosts. Duplicate hosts are damped

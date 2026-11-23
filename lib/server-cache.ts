@@ -6,7 +6,9 @@ interface CacheEntry {
 }
 
 const MAX_CACHE_ENTRIES = 100;
+const MAX_NEWS_CACHE_ENTRIES = 60;
 const searchCache = new Map<string, CacheEntry>();
+const newsCache = new Map<string, { value: unknown; expiresAt: number }>();
 const engineCooldownUntil = new Map<string, number>();
 
 export function buildSearchCacheKey(params: {
@@ -79,7 +81,66 @@ export function setCachedSearchResponse(
 
 export function clearSearchCache(): void {
   searchCache.clear();
+  newsCache.clear();
   engineCooldownUntil.clear();
+}
+
+export function buildNewsCacheKey(params: {
+  query: string;
+  topic: string;
+  region: string;
+  access: string;
+  timeRange: string;
+  page: number;
+  engines: string;
+  providerScope?: string;
+}): string {
+  return JSON.stringify([
+    params.query.trim().toLowerCase(),
+    params.topic.trim().toUpperCase(),
+    params.region,
+    params.access,
+    params.timeRange,
+    params.page,
+    params.engines,
+    params.providerScope || '',
+  ]);
+}
+
+export function getCachedNewsResponse<T extends { cacheHit?: boolean; timeTakenMs?: number }>(
+  key: string,
+  nowMs: number = Date.now()
+): T | null {
+  const entry = newsCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= nowMs) {
+    newsCache.delete(key);
+    return null;
+  }
+  newsCache.delete(key);
+  newsCache.set(key, entry);
+  return {
+    ...(entry.value as T),
+    cacheHit: true,
+    timeTakenMs: 1,
+  };
+}
+
+export function setCachedNewsResponse<T extends { cacheHit?: boolean }>(
+  key: string,
+  value: T,
+  ttlMs: number = 120_000,
+  nowMs: number = Date.now()
+): void {
+  if (newsCache.has(key)) newsCache.delete(key);
+  newsCache.set(key, {
+    value: { ...value, cacheHit: false },
+    expiresAt: nowMs + ttlMs,
+  });
+  if (newsCache.size > MAX_NEWS_CACHE_ENTRIES) {
+    const oldestKey = newsCache.keys().next().value;
+    if (oldestKey !== undefined) newsCache.delete(oldestKey);
+  }
 }
 
 export function isEngineCoolingDown(engineId: string, nowMs: number = Date.now()): boolean {

@@ -224,10 +224,11 @@ export default function HomePage() {
       try {
         if (effectiveCategory === 'news') {
           const newsQuery = parsed.cleanQuery || trimmed;
+          const timeParam = effectiveTimeRange !== 'all' ? `&timeRange=${encodeURIComponent(effectiveTimeRange)}` : '';
           const endpoint =
             parsed.bang && !parsed.cleanQuery
-              ? `/api/news?topic=TOP${regionParams}`
-              : `/api/news?q=${encodeURIComponent(newsQuery)}${regionParams}`;
+              ? `/api/news?topic=TOP${regionParams}${timeParam}`
+              : `/api/news?q=${encodeURIComponent(newsQuery)}${regionParams}${timeParam}`;
           const res = await fetch(endpoint, { signal: controller.signal });
           if (res.ok && reqId === searchReqIdRef.current) {
             const data = await res.json();

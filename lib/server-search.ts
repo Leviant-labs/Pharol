@@ -33,13 +33,12 @@ import {
   setCachedSearchResponse,
 } from './server-cache';
 import { evaluateInstantUtility } from './instant-tools';
+import { fetchBingNewsRss, searchNews } from './news-service';
 import {
   searchBraveImages,
-  searchBraveNews,
   searchBraveVideos,
   searchBraveWeb,
   searchSerperImages,
-  searchSerperNews,
   searchSerperVideos,
   searchSerperWeb,
   SerpQuotaError,
@@ -852,246 +851,16 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     });
   };
 
-  // 6. Direct News Highlights & News Vertical (`!news` / `category: 'news'`)
+  // 6. Lightweight News Highlights strip for Full general web search (category === 'all')
   const newsTask = async () => {
-    if (page > 1 && effectiveCategory !== 'news') return;
-
-    const subNewsTasks: Promise<void>[] = [
-      trackEngine('bing-news', 'Bing News', async () => {
-        const newsItems: SearchResult[] = [];
-        const res = await fetchWithTimeout(
-          `https://www.bing.com/news/search?q=${encodeURIComponent(
-            cleanQ
-          )}&format=rss&cc=${encodeURIComponent(regionProfile.bingCc)}&setlang=${encodeURIComponent(
-            regionProfile.bingLang
-          )}`,
-          {
-            headers: {
-              'User-Agent': BROWSER_UA,
-              'Accept-Language': `${regionProfile.bingLang},${regionProfile.lang};q=0.9,en;q=0.7`,
-            },
-          },
-          3000
-        );
-        if (!res.ok) return 0;
-        const xml = await res.text();
-        const $ = cheerio.load(xml, { xmlMode: true });
-        $('item').each((i, el) => {
-          if (i >= 8) return false;
-          const title = decodeHtmlEntities($(el).find('title').text().trim());
-          const directUrl = extractBingTargetUrl($(el).find('link').text().trim());
-          const snippet = decodeHtmlEntities($(el).find('description').text().trim());
-          const pubDate = $(el).find('pubDate').text().trim();
-          const source = $(el).find('News\\:Source, source').text().trim();
-          const newsImg =
-            $(el).find('News\\:Image').text().trim() ||
-            $(el).find('media\\:thumbnail, media\\:content').first().attr('url') ||
-            undefined;
-          if (title && directUrl && !directUrl.includes('bing.com/news/')) {
-            newsItems.push({
-              id: `bing-hl-${page}-${i}-${Date.now()}`,
-              title,
-              url: directUrl,
-              displayedUrl: source || extractDomain(directUrl),
-              snippet: snippet || title,
-              engine: 'bing-news',
-              category: 'news',
-              thumbnail: newsImg && newsImg.startsWith('http') ? newsImg : undefined,
-              publishedDate: pubDate
-                ? new Date(pubDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                : undefined,
-              author: source || extractDomain(directUrl),
-              rankPosition: i,
-            });
-          }
-        });
-
-        if (newsItems.length > 0) {
-          newsHighlights = newsItems.slice(0, 5);
-          if (effectiveCategory === 'news') {
-            aggregatedResults.push(...newsItems);
-          }
-        }
-        return newsItems.length;
-      }),
-    ];
-
-    if (effectiveCategory === 'news') {
-      if (isEngineEnabled('firecrawl')) {
-        subNewsTasks.push(
-          trackEngine('firecrawl-news', 'Firecrawl News', async () => {
-            const fcBody: Record<string, any> = { query: cleanQ, sources: ['news'], limit: 8 };
-            if (regionProfile.code !== 'global') {
-              fcBody.location = regionProfile.countryName;
-              fcBody.country = regionProfile.country;
-            }
-            const res = await fetchWithTimeout(
-              'https://api.firecrawl.dev/v2/search',
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(firecrawlKey
-                    ? { Authorization: `Bearer ${firecrawlKey}` }
-                    : {}),
-                },
-                body: JSON.stringify(fcBody),
-              },
-              3800
-            );
-            checkQuotaResponse('firecrawl-news', res);
-            if (!res.ok) return 0;
-            const json = await res.json();
-            const list = Array.isArray(json?.data?.news) ? json.data.news : [];
-            let count = 0;
-            for (let i = 0; i < list.length; i++) {
-              const r = list[i];
-              if (!r?.url || !r?.title) continue;
-              aggregatedResults.push({
-                id: `fc-news-s-${i}-${Date.now()}`,
-                title: decodeHtmlEntities(String(r.title)),
-                url: r.url,
-                displayedUrl: extractDomain(r.url),
-                snippet: cleanMarkdownSnippet(String(r.snippet || r.title), 240),
-                engine: 'firecrawl-news',
-                category: 'news',
-                publishedDate: r.date ? String(r.date) : undefined,
-                thumbnail: r.imageUrl || undefined,
-                rankPosition: i,
-              });
-              count++;
-            }
-            return count;
-          })
-        );
+    if (page > 1) return;
+    await trackEngine('bing-news', 'Bing News', async () => {
+      const items = await fetchBingNewsRss(cleanQ, regionProfile, timeRange, fetchWithTimeout);
+      if (items.length > 0) {
+        newsHighlights = items.slice(0, 5);
       }
-
-      if (isEngineEnabled('tavily')) {
-        subNewsTasks.push(
-          trackEngine('tavily-news', 'Tavily News', async () => {
-            const res = await fetchWithTimeout(
-              'https://api.tavily.com/search',
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(tavilyKey
-                    ? { Authorization: `Bearer ${tavilyKey}` }
-                    : { 'X-Tavily-Access-Mode': 'keyless' }),
-                },
-                body: JSON.stringify({ query: cleanQ, topic: 'news', days: 7, max_results: 8 }),
-              },
-              3800
-            );
-            checkQuotaResponse('tavily-news', res);
-            if (!res.ok) return 0;
-            const data = await res.json();
-            const list = Array.isArray(data?.results) ? data.results : [];
-            let count = 0;
-            for (let i = 0; i < list.length; i++) {
-              const r = list[i];
-              if (!r?.url || !r?.title) continue;
-              aggregatedResults.push({
-                id: `tav-news-s-${i}-${Date.now()}`,
-                title: decodeHtmlEntities(String(r.title)),
-                url: r.url,
-                displayedUrl: extractDomain(r.url),
-                snippet: cleanMarkdownSnippet(String(r.content || r.title), 240),
-                engine: 'tavily-news',
-                category: 'news',
-                score: typeof r.score === 'number' ? r.score : undefined,
-                rankPosition: i,
-              });
-              count++;
-            }
-            return count;
-          })
-        );
-      }
-
-      if (isEngineEnabled('tinyfish')) {
-        subNewsTasks.push(
-          trackEngine('tinyfish-news', 'TinyFish News', async () => {
-            const tfArgs: Record<string, any> = {
-              query: cleanQ,
-              domain_type: 'news',
-              page: Math.max(0, page - 1),
-            };
-            if (regionProfile.code !== 'global') {
-              tfArgs.location = regionProfile.country;
-              tfArgs.language = regionProfile.lang;
-            }
-            const inner = await callMcpSearchTool(
-              'tinyfish-news',
-              'https://agent.tinyfish.ai/mcp',
-              tinyfishKey
-                ? { 'X-API-Key': tinyfishKey }
-                : { 'X-TinyFish-Access-Mode': 'keyless' },
-              'search',
-              tfArgs,
-              3800
-            );
-            if (!inner) return 0;
-            const parsed = JSON.parse(inner);
-            const list = Array.isArray(parsed.results) ? parsed.results.slice(0, 8) : [];
-            let count = 0;
-            for (let i = 0; i < list.length; i++) {
-              const r = list[i];
-              if (!r?.url || !r?.title) continue;
-              aggregatedResults.push({
-                id: `tf-news-s-${i}-${Date.now()}`,
-                title: decodeHtmlEntities(String(r.title)),
-                url: r.url,
-                displayedUrl: r.site_name || extractDomain(r.url),
-                snippet: cleanMarkdownSnippet(String(r.snippet || r.title), 240),
-                engine: 'tinyfish-news',
-                category: 'news',
-                publishedDate: r.date ? String(r.date) : undefined,
-                rankPosition: i,
-              });
-              count++;
-            }
-            return count;
-          })
-        );
-      }
-
-      if (isEngineEnabled('serper') && serperKey) {
-        subNewsTasks.push(
-          trackEngine('serper-news', 'Serper News', async () => {
-            const items = await searchSerperNews({
-              query: effectiveQuery,
-              apiKey: serperKey,
-              page,
-              timeRange,
-              regionProfile,
-              fetchFn: fetchWithTimeout,
-            });
-            aggregatedResults.push(...items);
-            return items.length;
-          })
-        );
-      }
-
-      if (isEngineEnabled('brave') && braveKey) {
-        subNewsTasks.push(
-          trackEngine('brave-news', 'Brave News', async () => {
-            const items = await searchBraveNews({
-              query: effectiveQuery,
-              apiKey: braveKey,
-              page,
-              timeRange,
-              regionProfile,
-              fetchFn: fetchWithTimeout,
-            });
-            aggregatedResults.push(...items);
-            return items.length;
-          })
-        );
-      }
-    }
-
-    await Promise.allSettled(subNewsTasks);
+      return items.length;
+    });
   };
 
   // 7. Code & Developer Sources (GitHub, DeepWiki, Google Code Wiki, Exa Code, Context7, GitMCP, MDN, Firecrawl Dev, Packages, Stack Overflow, Hacker News)
@@ -2941,6 +2710,42 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     });
   };
 
+  // Delegate news vertical directly to the unified news-service pipeline
+  if (effectiveCategory === 'news') {
+    const news = await searchNews({
+      query: rawQuery,
+      timeRange,
+      page,
+      region: regionProfile.code,
+      enginesParam: allowedEngines ? Array.from(allowedEngines).join(',') : undefined,
+      acceptLanguage: options.acceptLanguage,
+      signal: options.signal,
+      userConfig: options.userConfig,
+      providerDefaults: options.providerDefaults,
+    });
+    const response: SearchResponse = {
+      query: rawQuery,
+      parsedQuery,
+      category: 'news',
+      results: news.items,
+      totalResults: news.items.length,
+      timeTakenMs: news.timeTakenMs,
+      knowledgeBox: null,
+      conceptOverview: null,
+      intentSections: undefined,
+      instantAnswer: null,
+      newsHighlights: news.items.slice(0, 5),
+      relatedTopics: buildRelatedQueries(cleanQ, news.items, news.items.slice(0, 5), regionProfile.lang),
+      enginesUsed: news.sourcesUsed,
+      page,
+      hasMore: news.items.length >= 6 && page < 10,
+      cacheHit: news.cacheHit,
+      engineHealth: news.engineHealth,
+    };
+    if (!options.signal?.aborted) options.onBatch?.(response);
+    return response;
+  }
+
   // Run tasks for the effective category
   const tasks: Promise<void>[] = [];
   if (effectiveCategory === 'images') {
@@ -2952,8 +2757,6 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
   } else if (effectiveCategory === 'science') {
     tasks.push(scienceTask());
     if (options.includeConceptOverview !== false) tasks.push(academicConceptTask());
-  } else if (effectiveCategory === 'news') {
-    tasks.push(newsTask());
   } else {
     tasks.push(
       wikiTask(),

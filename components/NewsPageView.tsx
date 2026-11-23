@@ -80,7 +80,7 @@ export function NewsPageView({
               Direct News Wire
             </h1>
             <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-              Aggregated across RTP, Observador, ECO, Notícias ao Minuto, BBC, NPR, The Guardian, Firecrawl News, Tavily News, TinyFish News, DuckDuckGo News &amp; Bing News · Direct publisher URLs
+              Aggregated across RTP, Observador, ECO, Notícias ao Minuto, BBC, NPR, The Guardian, Exa News, Firecrawl News, Tavily News, TinyFish News, DuckDuckGo News &amp; Bing News · Direct publisher URLs
             </p>
           </div>
           <div className="flex items-center gap-3 font-mono text-xs text-neutral-500 dark:text-neutral-400 tabular-nums shrink-0 whitespace-nowrap">

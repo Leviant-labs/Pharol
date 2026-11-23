@@ -4,7 +4,7 @@ const { resolve, dirname } = require('node:path');
 const root = resolve(__dirname, '..');
 const packageDir = resolve(root, 'packages/cli');
 const sources = [
-  'browser-transport', 'cli', 'instant-tools', 'openalex', 'provider-config', 'reader-service',
+  'browser-transport', 'cli', 'instant-tools', 'news-service', 'openalex', 'provider-config', 'reader-service',
   'search-engine', 'search-types', 'serp-providers', 'server-cache', 'server-search', 'url-guard', 'web-engines',
 ];
 

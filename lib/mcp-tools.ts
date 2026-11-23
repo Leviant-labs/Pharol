@@ -65,7 +65,7 @@ export const SEARX_MCP_TOOLS: McpToolDefinition[] = [
     name: 'news_search',
     title: 'Direct Open-Access News Search',
     description:
-      'Fetch breaking news or search direct publisher headlines from BBC, NPR, The Guardian, Ars Technica, RTP, Observador, ECO, Notícias ao Minuto, Público, Firecrawl News, Tavily News, TinyFish News, DuckDuckGo News, Bing News, and Hacker News with open-access / free-wire filtering.',
+      'Fetch breaking news or search direct publisher headlines from BBC, NPR, The Guardian, Ars Technica, RTP, Observador, ECO, Notícias ao Minuto, Público, Exa News, Firecrawl News, Tavily News, TinyFish News, DuckDuckGo News, Bing News, Hacker News, and optional Serper/Brave News with open-access filtering, recency filtering, caching, and source health telemetry.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -74,6 +74,11 @@ export const SEARX_MCP_TOOLS: McpToolDefinition[] = [
           type: 'string',
           enum: ['TOP', 'TECHNOLOGY', 'SCIENCE', 'BUSINESS'],
           description: 'News wire category when browsing headlines (default: TOP).',
+        },
+        timeRange: {
+          type: 'string',
+          enum: ['all', 'day', 'week', 'month', 'year'],
+          description: 'Optional recency filter applied upstream and post-fetch (default: all).',
         },
         access: {
           type: 'string',
