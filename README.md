@@ -16,7 +16,11 @@ SearXNG service, Python runtime or `engines.yml` is required.
   and optional keyed providers.
 - **Vertical modes**: web, images, videos, news, code, science. Each vertical
   pulls from sources that actually have that kind of data (GitHub/npm/crates/PyPI
-  for code; arXiv/OpenAlex/CrossRef/Europe PMC/PubMed for papers).
+  for code; arXiv/OpenAlex/CrossRef/Europe PMC/PubMed for papers; a unified news
+  pipeline across Exa News, DuckDuckGo News, Bing News, direct publisher RSS
+  wires, Hacker News, TinyFish, Firecrawl, Tavily, and optional Serper/Brave with
+  upstream + post-fetch recency filtering, 2-minute caching, and per-source
+  health telemetry).
 - **Result fusion**: RRF over per-engine rank positions, with a consensus bonus
   when independent engines return the same normalized URL, plus recency, lexical,
   regional-TLD, citation and repository-star boosts. Duplicate hosts are damped
@@ -58,14 +62,33 @@ lib/instant-tools.ts          deterministic instant answers
 app/api/answer/route.ts       optional Gemini synthesis over retrieved sources
 ```
 
-Every engine is wrapped by `trackEngine()`, which records status, item count and
-latency into an `engineHealth` array that the UI renders as a per-engine strip.
-Timeouts are 3.5–4s per engine; a `429`/`402` puts that engine into a
-three-minute cooldown instead of retrying it for every query.
+Tracked engines report status, item count and latency in `engineHealth`.
+A `429`/`402` puts an engine into a three-minute cooldown rather than retrying it
+for every query. Web-adapter request deadlines include reading the response body.
 
-Search responses are cached in process memory (3 min, 100 entries) and that
-cache is bypassed entirely when the caller supplies their own API keys, so
-key-scoped results are never served to another caller.
+### Fast and Full search
+
+General web search defaults to **Fast**: DuckDuckGo, Wikipedia, Tavily, Exa,
+Keenable, Parallel and TinyFish — plus Serper (Google SERP) and Brave Search
+whenever a key is configured (limited to the user's enabled sources), with a
+shared 2.5-second web request budget. **Full** restores the broader set of
+enabled sources (including Bing, Google HTML, FreeSerp, Firecrawl, Marginalia)
+and optional news/code enrichment, with a seven-second web request budget. The
+browser control reruns the current query and remembers the mode in its URL.
+With streaming, Wikipedia search hits and GitHub repos can appear before their
+optional knowledge panel and wiki-link enrichment.
+
+Use `mode=full` on `/api/search` or `/api/search/stream`, `mode: "full"` on the
+MCP `web_search` tool, or `pharol search --mode full`. Explicit engine lists
+without a mode retain their previous behavior. Bangs and specialist verticals
+keep their own routing. Search results are cached in process memory (3 min,
+100 entries), separately by mode. Searches with user-specific provider overrides
+bypass that cache.
+
+To compare time to the first sourced batch and completed search, run
+`node --import tsx scripts/bench-search.ts --queries 4 --runs 2`. This uses public
+queries and resets the local result cache before each live engine sample; it
+does not measure browser rendering or AI answers.
 
 ## AI answers (optional)
 
@@ -78,7 +101,7 @@ own search/grounding tool is never called, so "grounded" here means *constrained
 to the supplied snippets and excerpts*, not *verified against Google*.
 
 ```ts
-model: 'gemini-4-hydrogen'                 // hardcoded, no env override
+model: process.env.GEMINI_MODEL || 'gemini-4-hydrogen'
 thinkingConfig: { thinkingLevel: LOW }
 responseMimeType: 'application/json'       // schema-enforced
 ```
@@ -122,6 +145,8 @@ TAVILY_API_KEY=       # Tavily: keyless via X-Tavily-Access-Mode
 FIRECRAWL_API_KEY=    # Firecrawl: /v2/search is keyless
 KEENABLE_API_KEY=     # Keenable MCP
 TINYFISH_API_KEY=     # TinyFish web search
+SERPER_API_KEY=       # Optional BYOK Google Web/News/Images/Videos via serper.dev
+BRAVE_API_KEY=        # Optional BYOK Brave Web/News/Images/Videos via api.search.brave.com
 CONTEXT7_API_KEY=
 SEMANTIC_SCHOLAR_API_KEY=
 CORE_API_KEY=
@@ -133,7 +158,8 @@ GITHUB_TOKEN=          # raises GitHub search rate limit
 
 Users add their own keys in **Privacy & Preferences → Keys & Hosts**: Context7,
 Semantic Scholar, CORE, OpenAlex, GitHub, Exa, Firecrawl, Tavily, Parallel,
-Keenable and TinyFish, plus a trusted self-hosted OpenDeepWiki endpoint. OpenAlex
+Keenable, TinyFish, Serper (Google SERP) and Brave Search, plus a trusted
+self-hosted OpenDeepWiki endpoint. OpenAlex
 links to its free-key settings page. Pharol does not register accounts or request
 verification emails on their behalf. Empty fields preserve saved keys; individual
 removal, replacement and removal of all keys are available. When a provider is used by
@@ -281,10 +307,12 @@ tool schema.
   nothing, Pharol injects two hand-built entries pointing at Wikipedia and
   GitHub search. They are navigational aids, not search hits, and are labeled
   with their engine.
-- **`/api/reader` and `/api/mcp` are unauthenticated.** The reader fetches a
-  caller-supplied URL. Before exposing this deployment publicly, add a host
-  allowlist / private-range block to `app/api/reader/route.ts` and put auth or
-  rate limiting in front of `/api/mcp`.
+- **Reader URL guard & keyless MCP.** `/api/reader`, CLI `read`, and MCP
+  `read_webpage` reject non-HTTP(S) schemes, embedded credentials,
+  localhost/internal hostnames, private/loopback/metadata IP ranges, and unsafe
+  redirects, and cap extracted responses at 4 MB. `/api/mcp` stays intentionally
+  keyless; if you expose an instance publicly, add reverse-proxy rate limiting
+  in front of `/api/mcp` and `/api/reader`.
 - **`/api/answer` sends the query, snippets and page excerpts to Gemini** when a
   key is configured, and fetches the top two result URLs through `r.jina.ai`
   first. Search itself does not require it.

@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { runMetasearch } from '@/lib/server-search';
 import { requestProviderContext } from '@/lib/provider-credentials';
 import { searchNews } from '@/lib/news-service';
-import { readWebpage } from '@/lib/reader-service';
+import { readWebpage, ReaderError } from '@/lib/reader-service';
 import { runPaperTool, PAPER_TOOL_NAMES } from '@/lib/paper-tools';
-import { NewsAccessFilter, SearchCategory, SearchRegion, TimeRange } from '@/lib/search-types';
+import { NewsAccessFilter, parseSearchMode, SearchCategory, SearchRegion, TimeRange } from '@/lib/search-types';
 import {
   SEARX_MCP_SERVER_INFO,
   SEARX_MCP_TOOLS,
@@ -123,6 +123,8 @@ export async function POST(req: NextRequest) {
           category,
           timeRange,
           enginesParam,
+          mode: parseSearchMode(args.mode),
+          signal: req.signal,
           page,
           region,
           acceptLanguage,
@@ -217,6 +219,8 @@ export async function POST(req: NextRequest) {
           topic: args.topic ? String(args.topic) : undefined,
           region: args.region ? String(args.region) as SearchRegion : undefined,
           access: (args.access as NewsAccessFilter) || 'free',
+          timeRange: (args.timeRange as TimeRange) || 'all',
+          signal: req.signal,
           acceptLanguage: req.headers.get('accept-language') || undefined,
           ...providerContext,
         });
@@ -284,6 +288,12 @@ export async function POST(req: NextRequest) {
         { status: 404, headers: CORS_HEADERS }
       );
     } catch (err) {
+      if (err instanceof ReaderError && (err.code === 'missing_url' || err.code === 'invalid_url')) {
+        return NextResponse.json(
+          buildJsonRpcError(id, -32602, err.message),
+          { status: 400, headers: CORS_HEADERS }
+        );
+      }
       return NextResponse.json(
         buildJsonRpcError(id, -32000, err instanceof Error ? err.message : 'Tool execution error'),
         { status: 500, headers: CORS_HEADERS }

@@ -37,17 +37,19 @@ test('provider validation rejects unknown fields, oversized keys and header inje
   assert.deepEqual(patchProviders({ openAlexApiKey: 'old', coreApiKey: 'keep' }, { openAlexApiKey: null }), { coreApiKey: 'keep' });
 });
 
-test('every remaining keyless provider accepts a saved user key', () => {
+test('every remaining keyless and BYOK SERP provider accepts a saved user key', () => {
   const saved = patchProviders({}, {
     tavilyApiKey: 'tvly-1', parallelApiKey: 'parallel-1',
     keenableApiKey: 'keenable-1', tinyfishApiKey: 'tinyfish-1',
+    serperApiKey: 'serper-1', braveApiKey: 'brave-1',
   });
   assert.deepEqual(saved, {
     tavilyApiKey: 'tvly-1', parallelApiKey: 'parallel-1',
     keenableApiKey: 'keenable-1', tinyfishApiKey: 'tinyfish-1',
+    serperApiKey: 'serper-1', braveApiKey: 'brave-1',
   });
-  assert.deepEqual(patchProviders(saved, { tinyfishApiKey: null }), {
-    tavilyApiKey: 'tvly-1', parallelApiKey: 'parallel-1', keenableApiKey: 'keenable-1',
+  assert.deepEqual(patchProviders(saved, { tinyfishApiKey: null, braveApiKey: null }), {
+    tavilyApiKey: 'tvly-1', parallelApiKey: 'parallel-1', keenableApiKey: 'keenable-1', serperApiKey: 'serper-1',
   });
 });
 

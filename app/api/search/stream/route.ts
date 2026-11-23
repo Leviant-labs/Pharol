@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { runMetasearch } from '@/lib/server-search';
-import { SearchCategory, SearchRegion, TimeRange } from '@/lib/search-types';
+import { parseSearchMode, SearchCategory, SearchRegion, TimeRange } from '@/lib/search-types';
 import { requestProviderContext } from '@/lib/provider-credentials';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +17,8 @@ export async function GET(req: NextRequest) {
   const providerContext = requestProviderContext(req);
 
   const encoder = new TextEncoder();
+  const delivery = new AbortController();
+  const signal = AbortSignal.any([req.signal, delivery.signal]);
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -37,6 +39,8 @@ export async function GET(req: NextRequest) {
           rawQuery,
           category,
           enginesParam,
+          mode: parseSearchMode(searchParams.get('mode')),
+          signal,
           page: Number.isFinite(page) ? page : 1,
           timeRange,
           region,
@@ -52,11 +56,14 @@ export async function GET(req: NextRequest) {
           message: err instanceof Error ? err.message : 'Metasearch stream error',
         });
       } finally {
-        if (!closed) {
+        if (!closed && !delivery.signal.aborted) {
           closed = true;
           controller.close();
         }
       }
+    },
+    cancel() {
+      delivery.abort();
     },
   });
 

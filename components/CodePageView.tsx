@@ -182,23 +182,26 @@ export function CodePageView({
           className="flex items-center gap-2 max-w-4xl"
         >
           <div className="relative flex-1">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-neutral-400">
-              <Search className="h-4 w-4" />
+            <div
+              className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4"
+              style={{ color: 'var(--accent-primary)' }}
+            >
+              <Search className="h-4 w-4 opacity-85" />
             </div>
             <input
               ref={searchInputRef}
               type="text"
               value={query}
               onChange={(e) => onUpdateQuery(e.target.value)}
-              placeholder="Search Context7, Exa Code, DeepWiki, Google Code Wiki, GitMCP, GitHub, npm/PyPI/Crates..."
+              placeholder="Search Context7, Exa Code, DeepWiki, GitMCP, GitHub, npm/PyPI/Crates..."
               aria-label="Search code"
-              className="w-full rounded-full pharol-glass-inset py-2.5 pl-10 pr-12 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-white/50 focus:outline-none focus:ring-2 focus:ring-sky-500/20 dark:text-neutral-100 dark:placeholder:text-neutral-400 transition-colors"
+              className="w-full rounded-full pharol-liquid-dock py-2.5 pl-11 pr-12 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#38a3b8]/35 dark:text-[#f0f4f8] dark:placeholder:text-[#6c7a89] transition-all"
             />
             {query && (
               <button
                 type="button"
                 onClick={() => onUpdateQuery('')}
-                className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-xs text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
+                className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-xs text-neutral-400 hover:text-neutral-800 dark:text-[#6c7a89] dark:hover:text-[#f0f4f8]"
               >
                 Clear
               </button>
@@ -206,12 +209,13 @@ export function CodePageView({
           </div>
           <button
             type="submit"
-            className="rounded-full pharol-liquid-btn px-5 py-2.5 text-xs font-medium shrink-0 whitespace-nowrap"
+            className="rounded-full pharol-cta px-5 py-2.5 text-xs font-medium shrink-0 whitespace-nowrap"
           >
             Search Code
           </button>
         </form>
 
+        {/* Barless section filter row: only active selection gets a glass pill */}
         <div className="flex items-center gap-1.5 mt-4 text-xs overflow-x-auto scrollbar-none">
           {sections.map((f) => {
             const count =
@@ -223,10 +227,10 @@ export function CodePageView({
                 key={f.id}
                 type="button"
                 onClick={() => setSectionOverride({ key: contextKey, value: f.id })}
-                className={`rounded-full px-3.5 py-1.5 font-medium transition-colors whitespace-nowrap shrink-0 ${
+                className={`rounded-full px-3.5 py-1.5 font-medium transition-all whitespace-nowrap shrink-0 ${
                   section === f.id
-                    ? 'pharol-liquid-btn'
-                    : 'pharol-glass-chip text-neutral-700 dark:text-neutral-200'
+                    ? 'pharol-nav-pill text-neutral-950 dark:text-[#f0f4f8]'
+                    : 'text-neutral-600 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]'
                 }`}
               >
                 {f.label} {results.length > 0 ? `(${count})` : ''}
@@ -237,17 +241,17 @@ export function CodePageView({
       </div>
 
       {loading ? (
-        <div className="rounded-3xl pharol-liquid-glass px-5 sm:px-6 py-2 divide-y divide-neutral-900/10 dark:divide-white/12">
+        <div className="rounded-[20px] pharol-frosted-pane p-5 sm:p-7 space-y-6">
           {[1, 2, 3, 4].map((n) => (
-            <div key={n} className="py-5 space-y-2.5 animate-pulse">
-              <div className="h-4 w-1/3 rounded bg-neutral-900/15 dark:bg-white/15" />
-              <div className="h-3.5 w-full rounded bg-neutral-900/10 dark:bg-white/10" />
+            <div key={n} className="space-y-2.5 animate-pulse">
+              <div className="h-4 w-1/3 rounded bg-neutral-900/15 dark:bg-white/[0.12]" />
+              <div className="h-3.5 w-full rounded bg-neutral-900/10 dark:bg-white/[0.07]" />
             </div>
           ))}
         </div>
       ) : displayedResults.length > 0 ? (
         <>
-          <div className="rounded-3xl pharol-liquid-glass px-5 sm:px-6 py-2 divide-y divide-neutral-900/10 dark:divide-white/12">
+          <div className="rounded-[20px] pharol-frosted-pane p-5 sm:p-7 space-y-1.5">
             {displayedResults.map((item, idx) => {
               const sec = inferCodeSection(item);
               const isSO = item.engine.includes('stackoverflow');
@@ -256,19 +260,21 @@ export function CodePageView({
                 <article
                   key={item.id}
                   data-code-index={idx}
+                  data-focused={focusedIndex === idx ? 'true' : undefined}
                   onClick={() => setFocusedIndex(idx)}
-                  className={`py-5 text-left transition-colors ${
+                  className={`group pharol-row-hover -mx-3 px-3.5 py-4 text-left ${
                     focusedIndex === idx
-                      ? 'bg-white/50 dark:bg-white/10 -mx-3 px-3 rounded-2xl ring-1 ring-neutral-900/15 dark:ring-white/25'
+                      ? 'bg-[#38a3b8]/10 ring-1 ring-[#38a3b8]/30'
                       : ''
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2 text-xs text-neutral-500 dark:text-neutral-400 mb-1">
-                    <span className="font-mono text-[11px] truncate">{item.displayedUrl}</span>
+                  <div className="flex items-center justify-between gap-2 text-xs text-neutral-500 dark:text-[#6c7a89] mb-1">
+                    <span className="font-mono text-[11px] truncate dark:text-[#9aa7b4]">
+                      {item.displayedUrl}
+                    </span>
                     <div className="flex items-center gap-2 text-[11px] shrink-0">
-                      <span className="rounded-full pharol-glass-inset px-2 py-0.5 text-[10px] text-neutral-600 dark:text-neutral-300">
-                        {sectionBadgeLabel[sec]}
-                      </span>
+                      <span style={{ color: 'var(--accent-primary)' }}>{sectionBadgeLabel[sec]}</span>
+                      <span aria-hidden="true">·</span>
                       <span className="font-mono">{item.engine}</span>
                       {item.publishedDate && (
                         <>
@@ -279,48 +285,48 @@ export function CodePageView({
                     </div>
                   </div>
 
-                  <h3 className="text-[17px] font-semibold text-neutral-950 dark:text-white leading-snug">
+                  <h3 className="text-[16.5px] font-semibold text-neutral-950 dark:text-[#f0f4f8] leading-snug">
                     <a
                       href={item.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="hover:underline"
+                      className="hover:text-[var(--accent-primary)] transition-colors"
                     >
                       {item.title}
                     </a>
                   </h3>
 
-                  <p className="mt-1.5 text-sm text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                  <p className="mt-1.5 text-sm text-neutral-600 dark:text-[#b4c1ce] leading-relaxed">
                     {item.snippet}
                   </p>
 
-                  {/* Package install command bar */}
+                  {/* Recessed code command aperture (zero pill spam) */}
                   {item.installCommand && (
-                    <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
                       <button
                         type="button"
                         onClick={() => handleCopy(item.installCommand!, `pkg-${item.id}`)}
-                        className="inline-flex items-center gap-2 rounded-full pharol-glass-inset px-3 py-1 text-xs font-mono text-neutral-800 dark:text-neutral-200 hover:border-white/40 transition-colors"
+                        className="pharol-aperture inline-flex items-center gap-2 px-3 py-1.5 text-xs font-mono text-neutral-800 dark:text-[#e6edf4] hover:text-[var(--accent-primary)] transition-colors"
                       >
-                        <Package className="h-3.5 w-3.5 text-neutral-500" />
+                        <Package className="h-3.5 w-3.5" style={{ color: 'var(--accent-primary)' }} />
                         <span>{item.installCommand}</span>
                         {copiedId === `pkg-${item.id}` ? (
-                          <Check className="h-3 w-3 text-emerald-500" />
+                          <Check className="h-3 w-3" style={{ color: 'var(--accent-primary)' }} />
                         ) : (
-                          <Copy className="h-3 w-3 text-neutral-400" />
+                          <Copy className="h-3 w-3 text-neutral-400 dark:text-[#6c7a89]" />
                         )}
                       </button>
                       {item.version && (
-                        <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
+                        <span className="text-[11px] font-mono text-neutral-500 dark:text-[#6c7a89]">
                           v{item.version}
                         </span>
                       )}
                     </div>
                   )}
 
-                  {/* Quick Repo Wiki & MCP Companion Chips */}
+                  {/* Clean inline companion links (zero pill spam) */}
                   {(item.wikiUrls || item.mcpUrl) && (
-                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
                       {item.wikiUrls?.deepwiki && (
                         <>
                           <button
@@ -332,16 +338,17 @@ export function CodePageView({
                                 url: item.wikiUrls!.deepwiki!,
                               })
                             }
-                            className="inline-flex items-center gap-1 rounded-full pharol-glass-chip px-2.5 py-1 font-medium text-neutral-800 dark:text-neutral-100"
+                            className="inline-flex items-center gap-1 font-medium hover:underline"
+                            style={{ color: 'var(--accent-primary)' }}
                           >
-                            <FileCode2 className="h-3 w-3 text-sky-600 dark:text-sky-400" />
+                            <FileCode2 className="h-3 w-3" />
                             <span>DeepWiki Preview</span>
                           </button>
                           <a
                             href={item.wikiUrls.deepwiki}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-full pharol-glass-inset px-2.5 py-1 text-neutral-700 hover:text-neutral-950 dark:text-neutral-300 dark:hover:text-white"
+                            className="inline-flex items-center gap-1 text-neutral-600 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]"
                           >
                             <span>DeepWiki</span>
                             <ExternalLink className="h-2.5 w-2.5" />
@@ -354,7 +361,7 @@ export function CodePageView({
                           href={item.wikiUrls.googleCodeWiki}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 rounded-full pharol-glass-inset px-2.5 py-1 text-neutral-700 hover:text-neutral-950 dark:text-neutral-300 dark:hover:text-white"
+                          className="inline-flex items-center gap-1 text-neutral-600 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]"
                         >
                           <span>Google Code Wiki</span>
                           <ExternalLink className="h-2.5 w-2.5" />
@@ -366,7 +373,8 @@ export function CodePageView({
                           href={item.wikiUrls.openDeepWiki}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 rounded-full pharol-glass-inset px-2.5 py-1 text-emerald-700 dark:text-emerald-300 hover:underline"
+                          className="inline-flex items-center gap-1 hover:underline"
+                          style={{ color: 'var(--accent-signal)' }}
                         >
                           <span>OpenDeepWiki</span>
                           <ExternalLink className="h-2.5 w-2.5" />
@@ -377,19 +385,17 @@ export function CodePageView({
                         <button
                           type="button"
                           onClick={() => handleCopy(item.mcpUrl!, `mcp-${item.id}`)}
-                          className="inline-flex items-center gap-1 rounded-full pharol-glass-chip px-2.5 py-1 font-mono text-neutral-700 dark:text-neutral-200"
+                          className="inline-flex items-center gap-1 font-mono text-neutral-600 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]"
                           title={`Copy GitMCP endpoint: ${item.mcpUrl}`}
                         >
                           {copiedId === `mcp-${item.id}` ? (
                             <>
-                              <Check className="h-3 w-3 text-emerald-500" />
-                              <span className="text-emerald-600 dark:text-emerald-400">
-                                Copied GitMCP
-                              </span>
+                              <Check className="h-3 w-3" style={{ color: 'var(--accent-primary)' }} />
+                              <span style={{ color: 'var(--accent-primary)' }}>Copied GitMCP</span>
                             </>
                           ) : (
                             <>
-                              <Terminal className="h-3 w-3 text-neutral-400" />
+                              <Terminal className="h-3 w-3 opacity-75" />
                               <span>Copy GitMCP</span>
                             </>
                           )}

@@ -1,5 +1,11 @@
 export type SearchCategory = 'all' | 'images' | 'videos' | 'news' | 'code' | 'science';
 
+export type SearchMode = 'fast' | 'full';
+
+export function parseSearchMode(value: unknown): SearchMode | undefined {
+  return value === 'fast' || value === 'full' ? value : undefined;
+}
+
 export type CodeSection = 'all' | 'docs' | 'wikis' | 'repos' | 'packages' | 'qa';
 export type ScienceSection = 'all' | 'papers' | 'preprints' | 'datasets';
 
@@ -32,6 +38,8 @@ export interface UserProviderConfig {
   parallelApiKey?: string;
   keenableApiKey?: string;
   tinyfishApiKey?: string;
+  serperApiKey?: string;
+  braveApiKey?: string;
   openDeepWikiUrl?: string;
 }
 

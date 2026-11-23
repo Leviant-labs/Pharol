@@ -8,9 +8,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // bridged into flat config. Pinned to the Next 15 major to match `next`.
 const compat = new FlatCompat({ baseDirectory: __dirname });
 
-export default [
+const config = [
   {
     ignores: ['.next/**', 'node_modules/**', 'next-env.d.ts', 'packages/cli/dist/**', 'packages/cli/source/**'],
   },
   ...compat.extends('next/core-web-vitals'),
 ];
+
+export default config;

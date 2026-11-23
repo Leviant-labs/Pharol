@@ -66,15 +66,15 @@ export function NewsWidget({ region = 'auto', onSearchQuery, onReadArticle }: Ne
   ];
 
   return (
-    <div className="rounded-3xl pharol-liquid-glass p-5 transition-colors">
-      <div className="pb-3 border-b border-neutral-900/10 dark:border-white/10 space-y-2.5">
+    <div className="transition-colors">
+      <div className="pb-3 space-y-2.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-            <Newspaper className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-400" />
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-900 dark:text-[#f0f4f8]">
+            <Newspaper className="h-3.5 w-3.5" style={{ color: 'var(--accent-primary)' }} />
             <span>Headlines</span>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() =>
@@ -83,13 +83,13 @@ export function NewsWidget({ region = 'auto', onSearchQuery, onReadArticle }: Ne
                 )
               }
               title="Cycle source filter: Free (no paywalls) / Open Wire Only / All"
-              className="rounded-full pharol-glass-chip px-2.5 py-0.5 text-[10px] font-mono text-neutral-700 hover:text-neutral-950 dark:text-neutral-200 dark:hover:text-white"
+              className="text-[11px] font-mono text-neutral-500 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8] transition-colors"
             >
               {accessMode === 'open-wire' ? 'Wire' : accessMode === 'free' ? 'Free' : 'All'}
             </button>
             <button
               onClick={() => fetchNews(topic)}
-              className="text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 p-0.5"
+              className="text-neutral-400 hover:text-neutral-800 dark:text-[#6c7a89] dark:hover:text-[#f0f4f8] p-0.5 transition-colors"
               aria-label="Refresh headlines"
             >
               <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
@@ -97,15 +97,15 @@ export function NewsWidget({ region = 'auto', onSearchQuery, onReadArticle }: Ne
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
           {topics.map((t) => (
             <button
               key={t.id}
               onClick={() => setTopic(t.id)}
-              className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors whitespace-nowrap ${
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all whitespace-nowrap ${
                 topic === t.id
-                  ? 'pharol-liquid-btn'
-                  : 'text-neutral-600 hover:text-neutral-950 dark:text-neutral-300 dark:hover:text-white'
+                  ? 'pharol-nav-pill text-neutral-950 dark:text-[#f0f4f8]'
+                  : 'text-neutral-500 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]'
               }`}
             >
               {t.label}
@@ -114,35 +114,35 @@ export function NewsWidget({ region = 'auto', onSearchQuery, onReadArticle }: Ne
         </div>
       </div>
 
-      <div className="pt-3 space-y-3.5">
+      <div className="pt-1 space-y-1.5">
         {loading && news.length === 0 ? (
-          <div className="py-8 text-center text-xs text-neutral-400">Loading headlines...</div>
+          <div className="py-6 text-center text-xs text-neutral-400 dark:text-[#6c7a89]">Loading headlines...</div>
         ) : filterNewsByAccess(news, accessMode).length > 0 ? (
           filterNewsByAccess(news, accessMode).slice(0, 4).map((item) => {
             const hasThumb = Boolean(item.thumbnail) && !failedImages[item.id];
             return (
-              <div key={item.id} className="group text-left flex items-start gap-2.5">
+              <div key={item.id} className="group pharol-row-hover -mx-2 px-2 py-2 text-left flex items-start gap-2.5">
                 {hasThumb ? (
                   <img
                     src={item.thumbnail}
                     alt=""
                     referrerPolicy="no-referrer"
                     onError={() => setFailedImages((prev) => ({ ...prev, [item.id]: true }))}
-                    className="h-11 w-11 shrink-0 rounded-md object-cover border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 mt-0.5"
+                    className="h-10 w-10 shrink-0 rounded-lg object-cover bg-neutral-100 dark:bg-white/[0.04] mt-0.5"
                   />
                 ) : (
-                  <div className="h-11 w-11 shrink-0 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-neutral-400 mt-0.5">
-                    <Newspaper className="h-4 w-4" />
+                  <div className="h-10 w-10 shrink-0 rounded-lg bg-neutral-100/80 dark:bg-white/[0.04] flex items-center justify-center text-neutral-400 dark:text-[#6c7a89] mt-0.5">
+                    <Newspaper className="h-3.5 w-3.5" />
                   </div>
                 )}
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-1">
+                  <div className="flex items-start justify-between gap-1.5">
                     {onReadArticle ? (
                       <button
                         type="button"
                         onClick={() => onReadArticle(item)}
-                        className="text-left text-xs font-medium text-neutral-800 hover:text-neutral-950 hover:underline dark:text-neutral-200 dark:hover:text-white line-clamp-2 leading-snug"
+                        className="text-left text-xs font-medium text-neutral-800 hover:text-neutral-950 dark:text-[#e6edf4] dark:hover:text-white line-clamp-2 leading-snug transition-colors"
                       >
                         {item.title}
                       </button>
@@ -151,7 +151,7 @@ export function NewsWidget({ region = 'auto', onSearchQuery, onReadArticle }: Ne
                         href={item.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-medium text-neutral-800 hover:text-neutral-950 hover:underline dark:text-neutral-200 dark:hover:text-white line-clamp-2 leading-snug"
+                        className="text-xs font-medium text-neutral-800 hover:text-neutral-950 dark:text-[#e6edf4] dark:hover:text-white line-clamp-2 leading-snug transition-colors"
                       >
                         {item.title}
                       </a>
@@ -160,15 +160,15 @@ export function NewsWidget({ region = 'auto', onSearchQuery, onReadArticle }: Ne
                       href={item.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-opacity shrink-0"
+                      className="pharol-hover-actions text-neutral-400 hover:text-neutral-800 dark:text-[#6c7a89] dark:hover:text-[#f0f4f8] shrink-0"
                       aria-label={`Open ${item.title} directly`}
                     >
                       <ArrowUpRight className="h-3.5 w-3.5" />
                     </a>
                   </div>
 
-                  <div className="flex items-center gap-1.5 mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
-                    <span className="truncate max-w-[110px] font-medium">{item.displayedUrl}</span>
+                  <div className="flex items-center gap-1.5 mt-1 text-[11px] text-neutral-500 dark:text-[#6c7a89]">
+                    <span className="truncate max-w-[120px] font-medium dark:text-[#9aa7b4]">{item.displayedUrl}</span>
                     {item.publishedDate && (
                       <>
                         <span aria-hidden="true">·</span>
@@ -179,7 +179,7 @@ export function NewsWidget({ region = 'auto', onSearchQuery, onReadArticle }: Ne
                       <button
                         type="button"
                         onClick={() => onReadArticle(item)}
-                        className="ml-auto inline-flex items-center gap-1 text-neutral-600 hover:text-neutral-950 dark:text-neutral-400 dark:hover:text-white shrink-0"
+                        className="pharol-hover-actions ml-auto inline-flex items-center gap-1 text-[var(--accent-primary)] hover:underline shrink-0"
                       >
                         <BookOpen className="h-3 w-3" />
                         <span>Read</span>
@@ -191,9 +191,9 @@ export function NewsWidget({ region = 'auto', onSearchQuery, onReadArticle }: Ne
             );
           })
         ) : (
-          <div className="py-6 text-center text-xs text-neutral-400">
+          <div className="py-6 text-center text-xs text-neutral-400 dark:text-[#6c7a89]">
             No headlines available.{' '}
-            <button onClick={() => onSearchQuery('world news')} className="underline">
+            <button onClick={() => onSearchQuery('world news')} className="underline text-[var(--accent-primary)]">
               Search news
             </button>
           </div>

@@ -10,7 +10,7 @@ import { TimeoutError } from 'impit';
 
 export const WEB_ENGINES = { google: 'Google', bing: 'Bing Web', duckduckgo: 'DuckDuckGo' } as const;
 type WebEngine = keyof typeof WEB_ENGINES;
-interface SearchOptions { query: string; page: number; region: SearchRegion; timeRange: TimeRange }
+interface SearchOptions { query: string; page: number; region: SearchRegion; timeRange: TimeRange; signal?: AbortSignal }
 const TIME_RANGES = { day: 'd', week: 'w', month: 'm', year: 'y', all: '' };
 const ddgTokens = new Map<string, { value: string; expires: number }>();
 
@@ -160,7 +160,7 @@ export async function searchWebEngine(engine: WebEngine, options: SearchOptions)
     const spec = buildWebRequest(engine, { ...options, page }, token);
     if (!spec) return { results: [] };
     try {
-      const response = await browserFetch(spec.url, { ...spec.init, signal: AbortSignal.timeout(4000) }, browser);
+      const response = await browserFetch(spec.url, { ...spec.init, signal: AbortSignal.any([AbortSignal.timeout(4000), ...(options.signal ? [options.signal] : [])]) }, browser);
       if (engine === 'duckduckgo' && response.status === 303) return { results: [] };
       if (!response.ok) throw new WebEngineError(`${WEB_ENGINES[engine]} HTTP ${response.status}`,
         [403, 429].includes(response.status) ? 'cooldown' : 'error');

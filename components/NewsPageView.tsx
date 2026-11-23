@@ -80,7 +80,7 @@ export function NewsPageView({
               Direct News Wire
             </h1>
             <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-              Aggregated across RTP, Observador, ECO, Notícias ao Minuto, BBC, NPR, The Guardian, Firecrawl News, Tavily News, TinyFish News, DuckDuckGo News &amp; Bing News · Direct publisher URLs
+              Aggregated across RTP, Observador, ECO, Notícias ao Minuto, BBC, NPR, The Guardian, Exa News, Firecrawl News, Tavily News, TinyFish News, DuckDuckGo News &amp; Bing News · Direct publisher URLs
             </p>
           </div>
           <div className="flex items-center gap-3 font-mono text-xs text-neutral-500 dark:text-neutral-400 tabular-nums shrink-0 whitespace-nowrap">
@@ -104,8 +104,11 @@ export function NewsPageView({
           className="mt-4 flex items-center gap-2 max-w-3xl"
         >
           <div className="relative flex-1">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-neutral-400">
-              <Search className="h-4 w-4" />
+            <div
+              className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4"
+              style={{ color: 'var(--accent-primary)' }}
+            >
+              <Search className="h-4 w-4 opacity-85" />
             </div>
             <input
               type="text"
@@ -113,13 +116,13 @@ export function NewsPageView({
               onChange={(e) => onUpdateQuery(e.target.value)}
               placeholder="Search breaking stories, publishers, or topics..."
               aria-label="Search news"
-              className="w-full rounded-full pharol-glass-inset py-2.5 pl-10 pr-12 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-white/50 focus:outline-none focus:ring-2 focus:ring-sky-500/20 dark:text-neutral-100 dark:placeholder:text-neutral-400 transition-colors"
+              className="w-full rounded-full pharol-liquid-dock py-2.5 pl-11 pr-12 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#38a3b8]/35 dark:text-[#f0f4f8] dark:placeholder:text-[#6c7a89] transition-all"
             />
             {query && (
               <button
                 type="button"
                 onClick={() => onUpdateQuery('')}
-                className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-xs text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
+                className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-xs text-neutral-400 hover:text-neutral-800 dark:text-[#6c7a89] dark:hover:text-[#f0f4f8]"
               >
                 Clear
               </button>
@@ -127,21 +130,21 @@ export function NewsPageView({
           </div>
           <button
             type="submit"
-            className="rounded-full pharol-liquid-btn px-5 py-2.5 text-xs font-medium shrink-0 whitespace-nowrap"
+            className="rounded-full pharol-cta px-5 py-2.5 text-xs font-medium shrink-0 whitespace-nowrap"
           >
             Search News
           </button>
         </form>
 
-        {/* Segmented Topic + Access Filter Row */}
+        {/* Barless Topic + Access Filter Row */}
         <div className="flex flex-wrap items-center justify-between gap-3 mt-4 text-xs">
           <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
             <button
               onClick={() => setActiveTopicFilter(null)}
-              className={`rounded-full px-3.5 py-1.5 font-medium transition-colors shrink-0 whitespace-nowrap ${
+              className={`rounded-full px-3.5 py-1.5 font-medium transition-all shrink-0 whitespace-nowrap ${
                 activeTopicFilter === null
-                  ? 'pharol-liquid-btn'
-                  : 'pharol-glass-chip text-neutral-700 dark:text-neutral-200'
+                  ? 'pharol-nav-pill text-neutral-950 dark:text-[#f0f4f8]'
+                  : 'text-neutral-600 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]'
               }`}
             >
               All ({filteredNews.length})
@@ -152,10 +155,10 @@ export function NewsPageView({
                 onClick={() =>
                   setActiveTopicFilter(activeTopicFilter === c.topic ? null : c.topic)
                 }
-                className={`rounded-full px-3.5 py-1.5 font-medium transition-colors shrink-0 whitespace-nowrap ${
+                className={`rounded-full px-3.5 py-1.5 font-medium transition-all shrink-0 whitespace-nowrap ${
                   activeTopicFilter === c.topic
-                    ? 'pharol-liquid-btn'
-                    : 'pharol-glass-chip text-neutral-700 dark:text-neutral-200'
+                    ? 'pharol-nav-pill text-neutral-950 dark:text-[#f0f4f8]'
+                    : 'text-neutral-600 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]'
                 }`}
               >
                 {c.topic} ({c.items.length})
@@ -164,7 +167,7 @@ export function NewsPageView({
           </div>
 
           <div
-            className="flex items-center gap-1 rounded-full pharol-glass-inset p-1 shrink-0"
+            className="flex items-center gap-1 rounded-full pharol-glass-chip p-0.5 shrink-0"
             role="group"
             aria-label="Source access filter"
           >
@@ -176,10 +179,10 @@ export function NewsPageView({
                   setActiveTopicFilter(null);
                   onChangeAccessFilter(opt.id);
                 }}
-                className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                className={`rounded-full px-3 py-1 text-[11px] font-medium transition-all whitespace-nowrap ${
                   accessFilter === opt.id
-                    ? 'pharol-liquid-btn'
-                    : 'text-neutral-600 hover:text-neutral-950 dark:text-neutral-300 dark:hover:text-white'
+                    ? 'pharol-nav-pill text-neutral-950 dark:text-[#f0f4f8]'
+                    : 'text-neutral-600 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]'
                 }`}
               >
                 {opt.label} ({opt.count})
@@ -334,8 +337,7 @@ export function NewsPageView({
               </div>
 
               <div
-                className="flex-1 max-h-[580px] overflow-y-auto rounded-3xl pharol-liquid-glass px-4 divide-y divide-neutral-900/10 dark:divide-white/12"
-                style={{ scrollbarWidth: 'thin' }}
+                className="flex-1 max-h-[580px] overflow-y-auto pharol-scroll rounded-[20px] pharol-frosted-pane p-4 space-y-1.5"
                 aria-label="Scrollable News List"
               >
                 {displayedStream.length > 0 ? (

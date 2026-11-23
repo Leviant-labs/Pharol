@@ -33,9 +33,20 @@ import {
   setCachedSearchResponse,
 } from './server-cache';
 import { evaluateInstantUtility } from './instant-tools';
+import { fetchBingNewsRss, searchNews } from './news-service';
+import {
+  searchBraveImages,
+  searchBraveVideos,
+  searchBraveWeb,
+  searchSerperImages,
+  searchSerperVideos,
+  searchSerperWeb,
+  SerpQuotaError,
+} from './serp-providers';
 import { searchWebEngine, WebEngineError, WEB_ENGINES } from './web-engines';
 import {
   SearchCategory,
+  SearchMode,
   SearchRegion,
   SearchResult,
   KnowledgeBox,
@@ -105,20 +116,17 @@ function buildRelatedQueries(
   return candidates.slice(0, 4);
 }
 
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 3800) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(id);
-  }
+function withDeadline(timeoutMs: number, ...parents: (AbortSignal | null | undefined)[]) {
+  return AbortSignal.any([AbortSignal.timeout(timeoutMs), ...parents.filter((signal): signal is AbortSignal => Boolean(signal))]);
 }
 
-async function callMcpSearchTool(
+function fetchWithDeadline(url: string, options: RequestInit = {}, timeoutMs = 3800) {
+  // Keep the signal attached after headers arrive, until the body is read.
+  return fetch(url, { ...options, signal: withDeadline(timeoutMs, options.signal) });
+}
+
+async function requestMcpSearchTool(
+  fetchWithTimeout: typeof fetchWithDeadline,
   engineId: string,
   endpoint: string,
   headers: Record<string, string>,
@@ -150,7 +158,8 @@ async function callMcpSearchTool(
   return parseMcpJsonRpcPayload(raw);
 }
 
-async function callSessionMcpTool(
+async function requestSessionMcpTool(
+  fetchWithTimeout: typeof fetchWithDeadline,
   engineId: string,
   endpoint: string,
   toolName: string,
@@ -214,6 +223,8 @@ export interface RunMetasearchOptions extends ProviderContext {
   rawQuery: string;
   category: SearchCategory;
   enginesParam?: string | null;
+  mode?: SearchMode;
+  signal?: AbortSignal;
   page?: number;
   timeRange?: TimeRange;
   region?: SearchRegion;
@@ -237,6 +248,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     parallelApiKey: parallelKey,
     keenableApiKey: keenableKey,
     tinyfishApiKey: tinyfishKey,
+    serperApiKey: serperKey,
+    braveApiKey: braveKey,
     exaApiKey: exaKey,
     firecrawlApiKey: firecrawlKey,
     context7ApiKey: c7Key,
@@ -265,7 +278,16 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
 
   // Allow !bang shortcuts to steer category and/or targeted engines seamlessly
   const effectiveCategory: SearchCategory = !options.ignoreBangRouting && parsedQuery.bang?.category || options.category;
-  const bangEngines = options.ignoreBangRouting ? undefined : parsedQuery.bang?.engines;
+  const bang = options.ignoreBangRouting ? undefined : parsedQuery.bang;
+  const bangEngines = bang?.engines;
+  const fastWeb = effectiveCategory === 'all' && !bang &&
+    (options.mode ?? (options.enginesParam?.trim() ? 'full' : 'fast')) === 'fast';
+  const generalWeb = effectiveCategory === 'all' && !bang;
+  const signal = generalWeb ? withDeadline(fastWeb ? 2500 : 7000, options.signal) : options.signal;
+  const fetchWithTimeout: typeof fetchWithDeadline = (url, init = {}, timeout) =>
+    fetchWithDeadline(url, { ...init, signal: init.signal && signal ? AbortSignal.any([init.signal, signal]) : init.signal ?? signal }, timeout);
+  const callMcpSearchTool = requestMcpSearchTool.bind(null, fetchWithTimeout);
+  const callSessionMcpTool = requestSessionMcpTool.bind(null, fetchWithTimeout);
 
   const allowedEngines = bangEngines
     ? new Set(bangEngines.map((e) => e.toLowerCase()))
@@ -278,7 +300,11 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       )
     : null;
 
-  const isEngineEnabled = (eng: string) => !allowedEngines || allowedEngines.has(eng.toLowerCase());
+  const fastEngines = new Set([
+    'duckduckgo', 'wikipedia', 'tavily', 'exa', 'keenable', 'parallel', 'tinyfish', 'serper', 'brave',
+  ]);
+  const isEngineEnabled = (eng: string) =>
+    (!fastWeb || fastEngines.has(eng)) && (!allowedEngines || allowedEngines.has(eng));
 
   const cleanQ = parsedQuery.cleanQuery || rawQuery;
   const effectiveQuery = parsedQuery.site ? `${cleanQ} site:${parsedQuery.site}` : cleanQ;
@@ -301,6 +327,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     timeRange,
     page,
     engines: `${options.enginesParam || ''}|concept:${options.includeConceptOverview !== false}`,
+    mode: fastWeb ? 'fast' : 'full',
     providerScope,
   });
   const cached = !hasUserOverrides ? getCachedSearchResponse(cacheKey) : null;
@@ -323,6 +350,9 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
   let relatedTopics: string[] = [];
 
   const cooldownKey = (engine: string) => providerScope ? `${engine}:${providerScope}` : engine;
+  const emitBatch = () => {
+    if (!options.signal?.aborted) options.onBatch?.(buildSnapshot(false));
+  };
 
   const trackEngine = async (
     engineId: string,
@@ -354,13 +384,14 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       if (count > 0 && !enginesUsed.includes(engineId)) {
         enginesUsed.push(engineId);
       }
-      if (options.onBatch && count > 0) {
-        options.onBatch(buildSnapshot(false));
-      }
+      if (count > 0) emitBatch();
     } catch (err) {
-      const isQuota = err instanceof RateLimitQuotaError || err instanceof OpenAlexError && [402, 429].includes(err.status);
+      const isQuota =
+        err instanceof RateLimitQuotaError ||
+        err instanceof SerpQuotaError ||
+        (err instanceof OpenAlexError && [402, 429].includes(err.status));
       if (isQuota || err instanceof WebEngineError && err.status === 'cooldown') recordEngineRateLimit(cooldownKey(engineId));
-      const isTimeout = err instanceof Error && err.name === 'AbortError';
+      const isTimeout = err instanceof Error && ['AbortError', 'TimeoutError'].includes(err.name);
       engineHealthMap.set(engineId, {
         engine: engineId,
         label,
@@ -495,6 +526,9 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     await trackEngine('wikipedia', 'Wikipedia', async () => {
       let count = 0;
       const primaryLang = regionProfile.wikiLang || 'en';
+      // Publish plain hits first; optional panel data shares a smaller budget.
+      const enrichmentSignal = withDeadline(fastWeb ? 900 : 3000, signal);
+      const enrichmentOptions = { headers: { 'User-Agent': 'Pharol/1.0 (metasearch)' }, signal: enrichmentSignal };
 
       const tryWikiSummary = async (langCode: string, titleCandidate: string) => {
         const wikiSummaryUrl = `https://${langCode}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
@@ -502,7 +536,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         )}`;
         const res = await fetchWithTimeout(
           wikiSummaryUrl,
-          { headers: { 'User-Agent': 'Pharol/1.0 (metasearch)' } },
+          enrichmentOptions,
           2800
         );
         if (!res.ok) return null;
@@ -538,7 +572,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
           )}`;
           const res = await fetchWithTimeout(
             mediaUrl,
-            { headers: { 'User-Agent': 'Pharol/1.0 (metasearch)' } },
+            enrichmentOptions,
             2000
           );
           if (res.ok) {
@@ -594,7 +628,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
               `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(
                 data.title || cleanQ
               )}&language=${langCode}&limit=1&format=json`,
-              { headers: { 'User-Agent': 'Pharol/1.0 (metasearch)' } },
+              enrichmentOptions,
               1800
             );
             if (wdSearchRes.ok) {
@@ -607,7 +641,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
               `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${encodeURIComponent(
                 qid
               )}&props=claims&format=json`,
-              { headers: { 'User-Agent': 'Pharol/1.0 (metasearch)' } },
+              enrichmentOptions,
               1800
             );
             if (wdEntRes.ok) {
@@ -647,16 +681,10 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         }
       };
 
-      let hit: { data: any; langCode: string } | null = null;
-      if (page === 1) {
-        hit = await tryWikiSummary(primaryLang, cleanQ);
-        if (!hit && primaryLang !== 'en') {
-          hit = await tryWikiSummary('en', cleanQ);
-        }
-        if (hit) {
-          await populateKnowledgeBoxFromHit(hit);
-        }
-      }
+      const exactSummary = page === 1
+        ? (async () => (await tryWikiSummary(primaryLang, cleanQ)) ||
+            (primaryLang !== 'en' ? await tryWikiSummary('en', cleanQ) : null))().catch(() => null)
+        : null;
 
       const srOffset = (page - 1) * 5;
       const searchWikiLang = async (langCode: string) => {
@@ -702,14 +730,18 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         count++;
       }
 
-      // If exact-title summary missed, resolve KnowledgeBox from the top Wikipedia search hit
-      if (page === 1 && !hit && wikiPages.length > 0) {
-        const topTitle = wikiPages[0].title;
-        if (topTitle) {
-          const resolvedHit = await tryWikiSummary(usedLang, topTitle);
-          if (resolvedHit) {
-            await populateKnowledgeBoxFromHit(resolvedHit);
+      if (count > 0) emitBatch();
+      if (exactSummary) {
+        try {
+          const hit = (await exactSummary) || (wikiPages[0]?.title && !enrichmentSignal.aborted
+            ? await tryWikiSummary(usedLang, wikiPages[0].title)
+            : null);
+          if (hit) {
+            await populateKnowledgeBoxFromHit(hit);
+            if (!count) emitBatch();
           }
+        } catch {
+          // Keep the already-published Wikipedia hits if enrichment fails.
         }
       }
 
@@ -779,7 +811,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         parsedQuery.inTitle ? `intitle:"${parsedQuery.inTitle}"` : '',
       ].filter(Boolean).join(' ');
       const results = await searchWebEngine(engine, {
-        query, page, region: regionProfile.code, timeRange,
+        query, page, region: regionProfile.code, timeRange, signal,
       });
       aggregatedResults.push(...results);
       return results.length;
@@ -795,7 +827,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     await trackEngine('marginalia', 'Marginalia', async () => {
       const idxOffset = (page - 1) * 8;
       const mUrl = `https://api.marginalia.nu/public/search/${encodeURIComponent(cleanQ)}?count=8&index=${idxOffset}`;
-      const res = await fetchWithTimeout(mUrl, { headers: { 'User-Agent': 'SearXMinimal/1.0' } }, 3000);
+      const res = await fetchWithTimeout(mUrl, { headers: { 'User-Agent': 'Pharol/1.0 (metasearch)' } }, 3000);
       if (!res.ok) return 0;
       const data = await res.json();
       const results = Array.isArray(data.results) ? data.results : [];
@@ -819,212 +851,16 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     });
   };
 
-  // 6. Direct News Highlights & News Vertical (`!news` / `category: 'news'`)
+  // 6. Lightweight News Highlights strip for Full general web search (category === 'all')
   const newsTask = async () => {
-    if (page > 1 && effectiveCategory !== 'news') return;
-
-    const subNewsTasks: Promise<void>[] = [
-      trackEngine('bing-news', 'Bing News', async () => {
-        const newsItems: SearchResult[] = [];
-        const res = await fetchWithTimeout(
-          `https://www.bing.com/news/search?q=${encodeURIComponent(
-            cleanQ
-          )}&format=rss&cc=${encodeURIComponent(regionProfile.bingCc)}&setlang=${encodeURIComponent(
-            regionProfile.bingLang
-          )}`,
-          {
-            headers: {
-              'User-Agent': BROWSER_UA,
-              'Accept-Language': `${regionProfile.bingLang},${regionProfile.lang};q=0.9,en;q=0.7`,
-            },
-          },
-          3000
-        );
-        if (!res.ok) return 0;
-        const xml = await res.text();
-        const $ = cheerio.load(xml, { xmlMode: true });
-        $('item').each((i, el) => {
-          if (i >= 8) return false;
-          const title = decodeHtmlEntities($(el).find('title').text().trim());
-          const directUrl = extractBingTargetUrl($(el).find('link').text().trim());
-          const snippet = decodeHtmlEntities($(el).find('description').text().trim());
-          const pubDate = $(el).find('pubDate').text().trim();
-          const source = $(el).find('News\\:Source, source').text().trim();
-          const newsImg =
-            $(el).find('News\\:Image').text().trim() ||
-            $(el).find('media\\:thumbnail, media\\:content').first().attr('url') ||
-            undefined;
-          if (title && directUrl && !directUrl.includes('bing.com/news/')) {
-            newsItems.push({
-              id: `bing-hl-${page}-${i}-${Date.now()}`,
-              title,
-              url: directUrl,
-              displayedUrl: source || extractDomain(directUrl),
-              snippet: snippet || title,
-              engine: 'bing-news',
-              category: 'news',
-              thumbnail: newsImg && newsImg.startsWith('http') ? newsImg : undefined,
-              publishedDate: pubDate
-                ? new Date(pubDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                : undefined,
-              author: source || extractDomain(directUrl),
-              rankPosition: i,
-            });
-          }
-        });
-
-        if (newsItems.length > 0) {
-          newsHighlights = newsItems.slice(0, 5);
-          if (effectiveCategory === 'news') {
-            aggregatedResults.push(...newsItems);
-          }
-        }
-        return newsItems.length;
-      }),
-    ];
-
-    if (effectiveCategory === 'news') {
-      if (isEngineEnabled('firecrawl')) {
-        subNewsTasks.push(
-          trackEngine('firecrawl-news', 'Firecrawl News', async () => {
-            const fcBody: Record<string, any> = { query: cleanQ, sources: ['news'], limit: 8 };
-            if (regionProfile.code !== 'global') {
-              fcBody.location = regionProfile.countryName;
-              fcBody.country = regionProfile.country;
-            }
-            const res = await fetchWithTimeout(
-              'https://api.firecrawl.dev/v2/search',
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(firecrawlKey
-                    ? { Authorization: `Bearer ${firecrawlKey}` }
-                    : {}),
-                },
-                body: JSON.stringify(fcBody),
-              },
-              3800
-            );
-            checkQuotaResponse('firecrawl-news', res);
-            if (!res.ok) return 0;
-            const json = await res.json();
-            const list = Array.isArray(json?.data?.news) ? json.data.news : [];
-            let count = 0;
-            for (let i = 0; i < list.length; i++) {
-              const r = list[i];
-              if (!r?.url || !r?.title) continue;
-              aggregatedResults.push({
-                id: `fc-news-s-${i}-${Date.now()}`,
-                title: decodeHtmlEntities(String(r.title)),
-                url: r.url,
-                displayedUrl: extractDomain(r.url),
-                snippet: cleanMarkdownSnippet(String(r.snippet || r.title), 240),
-                engine: 'firecrawl-news',
-                category: 'news',
-                publishedDate: r.date ? String(r.date) : undefined,
-                thumbnail: r.imageUrl || undefined,
-                rankPosition: i,
-              });
-              count++;
-            }
-            return count;
-          })
-        );
+    if (page > 1) return;
+    await trackEngine('bing-news', 'Bing News', async () => {
+      const items = await fetchBingNewsRss(cleanQ, regionProfile, timeRange, fetchWithTimeout);
+      if (items.length > 0) {
+        newsHighlights = items.slice(0, 5);
       }
-
-      if (isEngineEnabled('tavily')) {
-        subNewsTasks.push(
-          trackEngine('tavily-news', 'Tavily News', async () => {
-            const res = await fetchWithTimeout(
-              'https://api.tavily.com/search',
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(tavilyKey
-                    ? { Authorization: `Bearer ${tavilyKey}` }
-                    : { 'X-Tavily-Access-Mode': 'keyless' }),
-                },
-                body: JSON.stringify({ query: cleanQ, topic: 'news', days: 7, max_results: 8 }),
-              },
-              3800
-            );
-            checkQuotaResponse('tavily-news', res);
-            if (!res.ok) return 0;
-            const data = await res.json();
-            const list = Array.isArray(data?.results) ? data.results : [];
-            let count = 0;
-            for (let i = 0; i < list.length; i++) {
-              const r = list[i];
-              if (!r?.url || !r?.title) continue;
-              aggregatedResults.push({
-                id: `tav-news-s-${i}-${Date.now()}`,
-                title: decodeHtmlEntities(String(r.title)),
-                url: r.url,
-                displayedUrl: extractDomain(r.url),
-                snippet: cleanMarkdownSnippet(String(r.content || r.title), 240),
-                engine: 'tavily-news',
-                category: 'news',
-                score: typeof r.score === 'number' ? r.score : undefined,
-                rankPosition: i,
-              });
-              count++;
-            }
-            return count;
-          })
-        );
-      }
-
-      if (isEngineEnabled('tinyfish')) {
-        subNewsTasks.push(
-          trackEngine('tinyfish-news', 'TinyFish News', async () => {
-            const tfArgs: Record<string, any> = {
-              query: cleanQ,
-              domain_type: 'news',
-              page: Math.max(0, page - 1),
-            };
-            if (regionProfile.code !== 'global') {
-              tfArgs.location = regionProfile.country;
-              tfArgs.language = regionProfile.lang;
-            }
-            const inner = await callMcpSearchTool(
-              'tinyfish-news',
-              'https://agent.tinyfish.ai/mcp',
-              tinyfishKey
-                ? { 'X-API-Key': tinyfishKey }
-                : { 'X-TinyFish-Access-Mode': 'keyless' },
-              'search',
-              tfArgs,
-              3800
-            );
-            if (!inner) return 0;
-            const parsed = JSON.parse(inner);
-            const list = Array.isArray(parsed.results) ? parsed.results.slice(0, 8) : [];
-            let count = 0;
-            for (let i = 0; i < list.length; i++) {
-              const r = list[i];
-              if (!r?.url || !r?.title) continue;
-              aggregatedResults.push({
-                id: `tf-news-s-${i}-${Date.now()}`,
-                title: decodeHtmlEntities(String(r.title)),
-                url: r.url,
-                displayedUrl: r.site_name || extractDomain(r.url),
-                snippet: cleanMarkdownSnippet(String(r.snippet || r.title), 240),
-                engine: 'tinyfish-news',
-                category: 'news',
-                publishedDate: r.date ? String(r.date) : undefined,
-                rankPosition: i,
-              });
-              count++;
-            }
-            return count;
-          })
-        );
-      }
-    }
-
-    await Promise.allSettled(subNewsTasks);
+      return items.length;
+    });
   };
 
   // 7. Code & Developer Sources (GitHub, DeepWiki, Google Code Wiki, Exa Code, Context7, GitMCP, MDN, Firecrawl Dev, Packages, Stack Overflow, Hacker News)
@@ -1037,29 +873,18 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     const subTasks: Promise<void>[] = [];
     const discoveredRepoSlugs: string[] = searchIntent.repoSlug ? [searchIntent.repoSlug] : [];
     const discoveredRepoStars = new Map<string, number>();
-    const deepWikiStructureCache = new Map<string, string | null>();
+    const deepWikiProbes = new Map<string, Promise<string | null>>();
+    const githubWikiCandidates: Array<{ index: number; slug: string; stars: number }> = [];
 
-    const probeDeepWikiStructure = async (slug: string): Promise<string | null> => {
-      if (deepWikiStructureCache.has(slug)) {
-        return deepWikiStructureCache.get(slug) ?? null;
-      }
-      try {
-        const structureText = await callMcpSearchTool(
-          'deepwiki',
-          'https://mcp.deepwiki.com/mcp',
-          {},
-          'read_wiki_structure',
-          { repoName: slug },
-          2400
-        );
-        const valid =
-          structureText && !isDeepWikiErrorText(structureText) ? structureText : null;
-        deepWikiStructureCache.set(slug, valid);
-        return valid;
-      } catch {
-        deepWikiStructureCache.set(slug, null);
-        return null;
-      }
+    const probeDeepWikiStructure = (slug: string) => {
+      const cached = deepWikiProbes.get(slug);
+      if (cached) return cached;
+      const request = callMcpSearchTool(
+        'deepwiki', 'https://mcp.deepwiki.com/mcp', {},
+        'read_wiki_structure', { repoName: slug }, 2400
+      ).then((text) => text && !isDeepWikiErrorText(text) ? text : null).catch(() => null);
+      deepWikiProbes.set(slug, request);
+      return request;
     };
 
     // 7A. GitHub Repositories (enriched with verified DeepWiki, star-gated Google Code Wiki, GitMCP, optional trusted OpenDeepWiki)
@@ -1076,15 +901,6 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         const ghData = await ghRes.json();
         const items = Array.isArray(ghData.items) ? ghData.items : [];
 
-        if (isEngineEnabled('deepwiki') && page === 1 && items.length > 0) {
-          await Promise.allSettled(
-            items
-              .slice(0, 3)
-              .filter((it: any) => Boolean(it?.full_name))
-              .map((it: any) => probeDeepWikiStructure(it.full_name))
-          );
-        }
-
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
           if (item.full_name) {
@@ -1093,13 +909,12 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
             }
             discoveredRepoStars.set(item.full_name, Number(item.stargazers_count || 0));
           }
-          const verifiedDW = deepWikiStructureCache.has(item.full_name)
-            ? Boolean(deepWikiStructureCache.get(item.full_name))
-            : undefined;
+          const verifyWiki = isEngineEnabled('deepwiki') && page === 1 && i < 3 && item.full_name;
           const wikiLinks = buildRepoWikiLinks(item.full_name, trustedOpenDeepWiki || undefined, {
             stars: item.stargazers_count,
-            deepWikiVerified: verifiedDW,
+            ...(verifyWiki ? { deepWikiVerified: false } : {}),
           });
+          if (verifyWiki) githubWikiCandidates.push({ index: aggregatedResults.length, slug: item.full_name, stars: item.stargazers_count });
           const wikiUrls =
             wikiLinks.deepwiki || wikiLinks.googleCodeWiki || wikiLinks.openDeepWiki
               ? {
@@ -1489,6 +1304,19 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       const targetSlug = discoveredRepoSlugs[0];
       const followUps: Promise<void>[] = [];
 
+      if (githubWikiCandidates.length) {
+        followUps.push(Promise.all(githubWikiCandidates.map(async ({ index, slug, stars }) => {
+          if (!await probeDeepWikiStructure(slug)) return;
+          const links = buildRepoWikiLinks(slug, trustedOpenDeepWiki || undefined, { stars, deepWikiVerified: true });
+          const result = aggregatedResults[index];
+          aggregatedResults[index] = { ...result, wikiUrls: {
+            ...result.wikiUrls,
+            ...(links.deepwiki ? { deepwiki: links.deepwiki } : {}),
+            ...(links.googleCodeWiki ? { googleCodeWiki: links.googleCodeWiki } : {}),
+          } };
+        })).then(() => emitBatch()));
+      }
+
       if (isEngineEnabled('deepwiki') && page === 1 && targetSlug) {
         followUps.push(
           trackEngine('deepwiki', 'DeepWiki & Code Wiki', async () => {
@@ -1580,6 +1408,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
           trackEngine('gitmcp', 'GitMCP Docs', async () => {
             let owner: string | undefined;
             let repo: string | undefined;
+            let sessionId: string | null = null;
             if (targetSlug && targetSlug.includes('/')) {
               [owner, repo] = targetSlug.split('/');
             } else {
@@ -1592,6 +1421,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
                   { library: libCandidate },
                   3000
                 );
+                sessionId = mapRes.sessionId;
                 const slugMatch = mapRes.text?.match(/\b([a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+)\b/);
                 if (slugMatch?.[1]) {
                   [owner, repo] = slugMatch[1].split('/');
@@ -1605,7 +1435,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
               'https://gitmcp.io/docs',
               'search_generic_documentation',
               { owner, repo, query: cleanQ },
-              3800
+              3800,
+              sessionId
             );
             const slug = `${owner}/${repo}`;
             const gitmcpUrl = `https://gitmcp.io/${slug}`;
@@ -2253,7 +2084,7 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         const ovUrl = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(cleanQ)}&page_size=18&page=${page}`;
         const ovRes = await fetchWithTimeout(
           ovUrl,
-          { headers: { 'User-Agent': 'SearXMinimal-Metasearch' } },
+          { headers: { 'User-Agent': 'Pharol/1.0 (metasearch)' } },
           3500
         );
         if (!ovRes.ok) return 0;
@@ -2315,6 +2146,38 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         });
         return count;
       }),
+      ...(isEngineEnabled('serper') && serperKey
+        ? [
+            trackEngine('serper-images', 'Serper Images', async () => {
+              const items = await searchSerperImages({
+                query: effectiveQuery,
+                apiKey: serperKey,
+                page,
+                timeRange,
+                regionProfile,
+                fetchFn: fetchWithTimeout,
+              });
+              aggregatedResults.push(...items);
+              return items.length;
+            }),
+          ]
+        : []),
+      ...(isEngineEnabled('brave') && braveKey
+        ? [
+            trackEngine('brave-images', 'Brave Images', async () => {
+              const items = await searchBraveImages({
+                query: effectiveQuery,
+                apiKey: braveKey,
+                page,
+                timeRange,
+                regionProfile,
+                fetchFn: fetchWithTimeout,
+              });
+              aggregatedResults.push(...items);
+              return items.length;
+            }),
+          ]
+        : []),
     ]);
   };
 
@@ -2389,6 +2252,38 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         }
         return seenIds.size;
       }),
+      ...(isEngineEnabled('serper') && serperKey
+        ? [
+            trackEngine('serper-videos', 'Serper Videos', async () => {
+              const items = await searchSerperVideos({
+                query: effectiveQuery,
+                apiKey: serperKey,
+                page,
+                timeRange,
+                regionProfile,
+                fetchFn: fetchWithTimeout,
+              });
+              aggregatedResults.push(...items);
+              return items.length;
+            }),
+          ]
+        : []),
+      ...(isEngineEnabled('brave') && braveKey
+        ? [
+            trackEngine('brave-videos', 'Brave Videos', async () => {
+              const items = await searchBraveVideos({
+                query: effectiveQuery,
+                apiKey: braveKey,
+                page,
+                timeRange,
+                regionProfile,
+                fetchFn: fetchWithTimeout,
+              });
+              aggregatedResults.push(...items);
+              return items.length;
+            }),
+          ]
+        : []),
     ]);
   };
 
@@ -2775,6 +2670,82 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     });
   };
 
+  const serperTask = async () => {
+    if (!serperKey) return;
+    if (!isEngineEnabled('serper')) {
+      engineHealthMap.set('serper', { engine: 'serper', label: 'Serper (Google)', status: 'disabled', count: 0, durationMs: 0 });
+      return;
+    }
+    await trackEngine('serper', 'Serper (Google)', async () => {
+      const items = await searchSerperWeb({
+        query: effectiveQuery,
+        apiKey: serperKey,
+        page,
+        timeRange,
+        regionProfile,
+        fetchFn: fetchWithTimeout,
+      });
+      aggregatedResults.push(...items);
+      return items.length;
+    });
+  };
+
+  const braveTask = async () => {
+    if (!braveKey) return;
+    if (!isEngineEnabled('brave')) {
+      engineHealthMap.set('brave', { engine: 'brave', label: 'Brave Search', status: 'disabled', count: 0, durationMs: 0 });
+      return;
+    }
+    await trackEngine('brave', 'Brave Search', async () => {
+      const items = await searchBraveWeb({
+        query: effectiveQuery,
+        apiKey: braveKey,
+        page,
+        timeRange,
+        regionProfile,
+        fetchFn: fetchWithTimeout,
+      });
+      aggregatedResults.push(...items);
+      return items.length;
+    });
+  };
+
+  // Delegate news vertical directly to the unified news-service pipeline
+  if (effectiveCategory === 'news') {
+    const news = await searchNews({
+      query: rawQuery,
+      timeRange,
+      page,
+      region: regionProfile.code,
+      enginesParam: allowedEngines ? Array.from(allowedEngines).join(',') : undefined,
+      acceptLanguage: options.acceptLanguage,
+      signal: options.signal,
+      userConfig: options.userConfig,
+      providerDefaults: options.providerDefaults,
+    });
+    const response: SearchResponse = {
+      query: rawQuery,
+      parsedQuery,
+      category: 'news',
+      results: news.items,
+      totalResults: news.items.length,
+      timeTakenMs: news.timeTakenMs,
+      knowledgeBox: null,
+      conceptOverview: null,
+      intentSections: undefined,
+      instantAnswer: null,
+      newsHighlights: news.items.slice(0, 5),
+      relatedTopics: buildRelatedQueries(cleanQ, news.items, news.items.slice(0, 5), regionProfile.lang),
+      enginesUsed: news.sourcesUsed,
+      page,
+      hasMore: news.items.length >= 6 && page < 10,
+      cacheHit: news.cacheHit,
+      engineHealth: news.engineHealth,
+    };
+    if (!options.signal?.aborted) options.onBatch?.(response);
+    return response;
+  }
+
   // Run tasks for the effective category
   const tasks: Promise<void>[] = [];
   if (effectiveCategory === 'images') {
@@ -2786,8 +2757,6 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
   } else if (effectiveCategory === 'science') {
     tasks.push(scienceTask());
     if (options.includeConceptOverview !== false) tasks.push(academicConceptTask());
-  } else if (effectiveCategory === 'news') {
-    tasks.push(newsTask());
   } else {
     tasks.push(
       wikiTask(),
@@ -2801,17 +2770,19 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       freeserpTask(),
       keenableTask(),
       tinyfishTask(),
-      newsTask(),
-      codeTask()
+      serperTask(),
+      braveTask()
     );
-    if (searchIntent.isScience) {
+    if (!fastWeb) tasks.push(newsTask(), codeTask());
+    if (!fastWeb && searchIntent.isScience) {
       tasks.push(scienceTask());
     }
   }
 
   await Promise.allSettled(tasks);
   const finalResponse = buildSnapshot(true);
-  if (!hasUserOverrides) {
+  if (!hasUserOverrides && !options.signal?.aborted &&
+      (finalResponse.results.some((r) => !r.id.startsWith('fallback-')) || finalResponse.instantAnswer)) {
     setCachedSearchResponse(cacheKey, finalResponse);
   }
   return finalResponse;

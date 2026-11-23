@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
-import type { SearchCategory, SearchRegion, TimeRange } from './search-types';
+import type { SearchCategory, SearchMode, SearchRegion, TimeRange } from './search-types';
+
+const modes = ['fast', 'full'] as const satisfies readonly SearchMode[];
 
 const categories = ['all', 'images', 'videos', 'news', 'code', 'science'] as const satisfies readonly SearchCategory[];
 const regions = ['auto', 'global', 'pt-PT', 'pt-BR', 'en-US', 'en-GB', 'es-ES', 'fr-FR', 'de-DE'] as const satisfies readonly SearchRegion[];
@@ -18,6 +20,7 @@ Search options:
   --region <name>        ${regions.join(', ')} (default: auto)
   --time-range <range>   ${timeRanges.join(', ')} (default: all)
   --engines <ids>        Comma-separated engine IDs, e.g. bing,duckduckgo
+  --mode <fast|full>     General web search breadth (default: fast unless --engines is set)
   --page <number>        Result page from 1 to 10 (default: 1)
 
 Read extracts a public webpage using the same reader as the web app.
@@ -37,6 +40,7 @@ function parseSearch(args: string[]) {
     region: { type: 'string', default: 'auto' },
     'time-range': { type: 'string', default: 'all' },
     engines: { type: 'string' },
+    mode: { type: 'string' },
     page: { type: 'string', default: '1' },
     help: { type: 'boolean', short: 'h' },
   } });
@@ -57,6 +61,7 @@ function parseSearch(args: string[]) {
       region: choice('--region', values.region, regions),
       timeRange: choice('--time-range', values['time-range'], timeRanges),
       enginesParam: engines?.join(','),
+      mode: values.mode === undefined ? undefined : choice('--mode', values.mode, modes),
       page: Number(values.page),
     },
   };

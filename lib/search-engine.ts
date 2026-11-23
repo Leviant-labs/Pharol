@@ -390,6 +390,8 @@ export function getDisplayUrl(urlStr: string): string {
 }
 
 const ENGINE_WEIGHTS: Record<string, number> = {
+  serper: 1.3,
+  brave: 1.28,
   duckduckgo: 1.25,
   bing: 1.2,
   wikipedia: 1.18,
@@ -427,6 +429,9 @@ const ENGINE_WEIGHTS: Record<string, number> = {
   stackoverflow: 1.12,
   hackernews: 0.98,
   marginalia: 0.92,
+  'serper-news': 1.22,
+  'brave-news': 1.22,
+  'exa-news': 1.2,
   'duckduckgo-news': 1.2,
   'bing-news': 1.15,
   'firecrawl-news': 1.18,
@@ -441,8 +446,12 @@ const ENGINE_WEIGHTS: Record<string, number> = {
   eco: 1.08,
   noticiasaominuto: 1.06,
   publico: 1.06,
+  'serper-images': 1.15,
+  'brave-images': 1.15,
   openverse: 1.05,
   wikimedia: 1.0,
+  'serper-videos': 1.15,
+  'brave-videos': 1.15,
   youtube: 1.05,
   'internet-archive': 0.95,
 };

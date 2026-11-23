@@ -9,6 +9,11 @@ import {
   UnifiedAnswer,
 } from '@/lib/search-types';
 import { extractDomain } from '@/lib/search-engine';
+import { assertPublicHttpUrl, readBoundedText, ResponseTooLargeError } from '@/lib/url-guard';
+
+const MAX_ANSWER_BODY_BYTES = 64 * 1024;
+const MAX_ENRICHMENT_BYTES = 1_000_000;
+const RESPONSE_HEADERS = { 'Cache-Control': 'private, no-store' };
 
 interface AnswerRequestBody {
   query: string;
@@ -39,17 +44,52 @@ function formatCitationLabel(r: SearchResult): string {
   return dom;
 }
 
+async function readJsonBody(req: NextRequest, maxBytes: number): Promise<AnswerRequestBody> {
+  const declaredLength = Number(req.headers.get('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    await req.body?.cancel().catch(() => {});
+    throw new ResponseTooLargeError(maxBytes);
+  }
+  const reader = req.body?.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  if (reader) {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel().catch(() => {});
+        throw new ResponseTooLargeError(maxBytes);
+      }
+      chunks.push(value);
+    }
+  }
+  const raw = Buffer.concat(chunks).toString('utf8');
+  return JSON.parse(raw) as AnswerRequestBody;
+}
+
 export async function POST(req: NextRequest) {
+  let body: AnswerRequestBody;
   try {
-    const body = (await req.json()) as AnswerRequestBody;
-    const query = body.query?.trim();
-    if (!query) {
-      return NextResponse.json({ error: 'Missing query' }, { status: 400 });
+    body = await readJsonBody(req, MAX_ANSWER_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof ResponseTooLargeError) {
+      return NextResponse.json({ error: 'Answer request body too large' }, { status: 413, headers: RESPONSE_HEADERS });
+    }
+    return NextResponse.json({ error: 'Answer request body must be valid JSON' }, { status: 400, headers: RESPONSE_HEADERS });
+  }
+
+  try {
+    const query = typeof body.query === 'string' ? body.query.trim() : '';
+    if (!query || query.length > 500) {
+      return NextResponse.json({ error: 'Missing or invalid query' }, { status: 400, headers: RESPONSE_HEADERS });
     }
 
-    const followUpQuestion = body.followUpQuestion?.trim();
-    const followUpHistory = Array.isArray(body.followUpHistory) ? body.followUpHistory : [];
-    const rawResults = body.results || [];
+    const followUpQuestion =
+      typeof body.followUpQuestion === 'string' ? body.followUpQuestion.trim().slice(0, 500) : undefined;
+    const followUpHistory = Array.isArray(body.followUpHistory) ? body.followUpHistory.slice(-4) : [];
+    const rawResults = Array.isArray(body.results) ? body.results.slice(0, 20) : [];
     const kb = body.knowledgeBox;
     const instant = body.instantAnswer;
 
@@ -178,52 +218,43 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       if (followUpQuestion) {
-        return NextResponse.json(buildFollowUpFallback(followUpQuestion));
+        return NextResponse.json(buildFollowUpFallback(followUpQuestion), { headers: RESPONSE_HEADERS });
       }
-      return NextResponse.json(buildFallbackAnswer());
+      return NextResponse.json(buildFallbackAnswer(), { headers: RESPONSE_HEADERS });
     }
 
-    // Lightly enrich top 2 non-Wikipedia URLs with page text (1.4s budget) for faster Gemini grounding
+    // Lightly enrich top 2 non-Wikipedia public URLs with page text (1.4s budget) for faster grounding
     const enrichedSnippets = new Map<number, string>();
     if (!followUpQuestion) {
       await Promise.allSettled(
         topResults.slice(0, 2).map(async (r, i) => {
           if (!r.url || r.url.includes('wikipedia.org')) return;
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 1400);
           try {
-            const res = await fetch(`https://r.jina.ai/${r.url}`, {
-              headers: { Accept: 'text/plain' },
-              signal: controller.signal,
+            const safeUrl = await assertPublicHttpUrl(r.url);
+            const res = await fetch(`https://r.jina.ai/${safeUrl.toString()}`, {
+              headers: { Accept: 'text/plain', 'User-Agent': 'Pharol/1.0 (answer)' },
+              signal: AbortSignal.timeout(1400),
             });
             if (res.ok) {
-              const md = await res.text();
+              const md = await readBoundedText(res, MAX_ENRICHMENT_BYTES);
               const bodyIdx = md.indexOf('Markdown Content:');
-              const body = (bodyIdx >= 0 ? md.slice(bodyIdx + 17) : md)
+              const content = (bodyIdx >= 0 ? md.slice(bodyIdx + 17) : md)
                 .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
                 .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
                 .replace(/\s+/g, ' ')
                 .trim()
                 .slice(0, 900);
-              if (body.length > 180) enrichedSnippets.set(i, body);
+              if (content.length > 180) enrichedSnippets.set(i, content);
             }
           } catch {
             // keep original snippet
-          } finally {
-            clearTimeout(timer);
           }
         })
       );
     }
 
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
-    });
+    const model = process.env.GEMINI_MODEL?.trim() || 'gemini-4-hydrogen';
+    const ai = new GoogleGenAI({ apiKey });
 
     const contextLines = topResults
       .map((r, i) => {
@@ -255,7 +286,7 @@ export async function POST(req: NextRequest) {
 
       try {
         const response = await ai.models.generateContent({
-          model: 'gemini-4-hydrogen',
+          model,
           contents: followUpPrompt,
           config: {
             thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
@@ -288,9 +319,9 @@ export async function POST(req: NextRequest) {
               : citations.slice(0, 3),
           provider: 'gemini-grounded',
         };
-        return NextResponse.json(turn);
+        return NextResponse.json(turn, { headers: RESPONSE_HEADERS });
       } catch {
-        return NextResponse.json(buildFollowUpFallback(followUpQuestion));
+        return NextResponse.json(buildFollowUpFallback(followUpQuestion), { headers: RESPONSE_HEADERS });
       }
     }
 
@@ -307,7 +338,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
+        model,
         contents: prompt,
         config: {
           thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
@@ -361,9 +392,9 @@ export async function POST(req: NextRequest) {
         query,
       };
 
-      return NextResponse.json(unified);
+      return NextResponse.json(unified, { headers: RESPONSE_HEADERS });
     } catch {
-      return NextResponse.json(buildFallbackAnswer());
+      return NextResponse.json(buildFallbackAnswer(), { headers: RESPONSE_HEADERS });
     }
   } catch {
     return NextResponse.json(
@@ -374,7 +405,7 @@ export async function POST(req: NextRequest) {
         provider: 'instant-synthesis',
         query: '',
       } satisfies UnifiedAnswer,
-      { status: 200 }
+      { status: 200, headers: RESPONSE_HEADERS }
     );
   }
 }

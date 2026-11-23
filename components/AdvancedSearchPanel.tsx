@@ -94,6 +94,8 @@ export function AdvancedSearchPanel({
   };
 
   const coreEngines = [
+    { id: 'serper', label: 'Serper (Google)' },
+    { id: 'brave', label: 'Brave Search' },
     { id: 'google', label: 'Google' },
     { id: 'duckduckgo', label: 'DuckDuckGo' },
     { id: 'bing', label: 'Bing Web' },
@@ -205,17 +207,17 @@ export function AdvancedSearchPanel({
   };
 
   return (
-    <div className="relative rounded-3xl pharol-liquid-glass pharol-liquid-iridescent p-5 transition-all mb-6">
-      <div className="flex items-center justify-between pb-3 border-b border-neutral-900/10 dark:border-white/15">
+    <div className="relative rounded-[20px] pharol-frosted-pane pharol-liquid-iridescent p-5 sm:p-6 transition-all mb-6">
+      <div className="flex items-center justify-between pb-3 border-b border-neutral-900/10 dark:border-white/[0.08]">
         <div className="flex items-center gap-2">
-          <SlidersHorizontal className="h-4 w-4 text-neutral-600 dark:text-neutral-300" />
-          <h2 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+          <SlidersHorizontal className="h-4 w-4" style={{ color: 'var(--accent-primary)' }} />
+          <h2 className="text-xs font-semibold text-neutral-900 dark:text-[#f0f4f8]">
             Search Syntax, !Bangs &amp; Upstream Engines
           </h2>
         </div>
         <button
           onClick={onClose}
-          className="rounded-full pharol-glass-chip p-1 text-neutral-600 dark:text-neutral-200"
+          className="rounded-full p-1.5 text-neutral-500 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8] transition-colors"
           aria-label="Close advanced search panel"
         >
           <X className="h-3.5 w-3.5" />
@@ -223,13 +225,13 @@ export function AdvancedSearchPanel({
       </div>
 
       {/* Clickable !Bang Shortcuts (inserts directly into the visible search bar) */}
-      <div className="pt-4 pb-4 border-b border-neutral-900/10 dark:border-white/15 text-xs">
+      <div className="pt-4 pb-4 border-b border-neutral-900/10 dark:border-white/[0.08] text-xs">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-          <div className="font-medium text-neutral-900 dark:text-neutral-200 flex items-center gap-1.5">
-            <Zap className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-300" />
-            <span>!Bang Quick Targets (inserts into search bar)</span>
+          <div className="font-medium text-neutral-900 dark:text-[#d8e3ec] flex items-center gap-1.5">
+            <Zap className="h-3.5 w-3.5" style={{ color: 'var(--accent-signal)' }} />
+            <span>!Bang Quick Targets</span>
           </div>
-          <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+          <span className="text-[11px] text-neutral-500 dark:text-[#6c7a89]">
             Click to insert or remove from query
           </span>
         </div>
@@ -242,13 +244,13 @@ export function AdvancedSearchPanel({
                 type="button"
                 onClick={() => insertBangIntoSearchBar(b.bang)}
                 title={b.description}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-all ${
                   active
-                    ? 'pharol-liquid-btn font-medium'
-                    : 'pharol-glass-chip text-neutral-700 dark:text-neutral-200'
+                    ? 'pharol-nav-pill font-medium text-neutral-950 dark:text-[#f0f4f8]'
+                    : 'text-neutral-600 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8] hover:bg-neutral-900/5 dark:hover:bg-[#d8eaf4]/[0.05]'
                 }`}
               >
-                <span className="font-mono font-semibold">{b.bang}</span>
+                <span className="font-mono font-semibold" style={active ? { color: 'var(--accent-primary)' } : undefined}>{b.bang}</span>
                 <span className="text-[11px] opacity-75">{b.label}</span>
               </button>
             );
@@ -418,7 +420,7 @@ export function AdvancedSearchPanel({
             <span className="text-[10px] text-neutral-400">Saved locally</span>
           </div>
 
-          <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+          <div className="space-y-3 max-h-[280px] overflow-y-auto pharol-scroll pr-1">
             <div>
               <div className="text-[10px] font-medium uppercase tracking-wider text-neutral-400 mb-1.5">
                 Core Web &amp; Reference
