@@ -28,6 +28,11 @@ const REGION_OPTIONS: Array<{ id: SearchRegion; label: string }> = [
   { id: 'de-DE', label: 'Deutschland' },
 ];
 
+/**
+ * Layer 1 — Recessed, Barless Navigation Chrome.
+ * Floats directly on Layer 0 (#040507 void) with zero full-width strip,
+ * box, or hairline divider. Only the active category receives a soft glass pill.
+ */
 export function Navbar({
   currentCategory,
   onSelectCategory,
@@ -48,20 +53,33 @@ export function Navbar({
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b pharol-glass transition-colors">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 sm:gap-8 px-4 sm:px-6">
-        {/* Zone 1: Single-line Brand Wordmark */}
+    <header className="relative z-40 w-full pt-3 sm:pt-4">
+      <div className="mx-auto flex h-12 max-w-7xl items-center justify-between gap-4 sm:gap-8 px-4 sm:px-6">
+        {/* Zone 1: Bare Lighthouse Wordmark floating on Layer 0 */}
         <button
           onClick={onGoHome}
-          className="text-base font-bold tracking-tight text-neutral-950 dark:text-white hover:opacity-75 transition-opacity whitespace-nowrap shrink-0"
+          className="group flex items-center gap-2.5 text-[15px] font-semibold tracking-tight text-neutral-950 dark:text-[#f0f4f8] hover:opacity-85 transition-opacity whitespace-nowrap shrink-0"
           aria-label="Pharol Home"
         >
-          Pharol
+          <span
+            aria-hidden="true"
+            className="relative flex h-2.5 w-2.5 items-center justify-center"
+          >
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-signal) 100%)',
+                boxShadow: '0 0 10px rgba(var(--accent-primary-rgb), 0.55)',
+              }}
+            />
+          </span>
+          <span>Pharol</span>
         </button>
 
-        {/* Zone 2 (Desktop): Clean single-line category navigation */}
+        {/* Zone 2 (Desktop): Barless category nav — only active tab gets a subtle glass pill */}
         <nav
-          className="hidden md:flex items-center gap-5 h-full"
+          className="hidden md:flex items-center gap-1"
           aria-label="Search Categories"
         >
           {categories.map((cat) => {
@@ -70,37 +88,39 @@ export function Navbar({
               <button
                 key={cat.id}
                 onClick={() => onSelectCategory(cat.id)}
-                className={`relative h-full flex items-center px-2 text-[13px] font-medium whitespace-nowrap shrink-0 transition-colors ${
+                className={`rounded-full px-3.5 py-1.5 text-[13px] font-medium whitespace-nowrap shrink-0 transition-all ${
                   active
-                    ? 'text-neutral-950 dark:text-white'
-                    : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100'
+                    ? 'pharol-nav-pill text-neutral-950 dark:text-[#f0f4f8]'
+                    : 'text-neutral-600 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]'
                 }`}
               >
-                <span>{cat.label}</span>
-                {active && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute bottom-0 left-1 right-1 h-0.5 rounded-full bg-neutral-950 dark:bg-white"
-                  />
-                )}
+                {cat.label}
               </button>
             );
           })}
         </nav>
 
-        {/* Zone 3: Region Selector + Local Privacy Controls + Theme Toggle */}
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="relative flex items-center rounded-full pharol-glass-chip px-3 py-1.5 text-xs text-neutral-700 dark:text-neutral-200">
-            <Globe className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-300 shrink-0 mr-1.5" aria-hidden="true" />
+        {/* Zone 3: Minimal Utility Triggers */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="relative flex items-center rounded-full px-2.5 py-1.5 text-xs text-neutral-700 dark:text-[#9aa7b4] hover:text-neutral-950 dark:hover:text-[#f0f4f8] transition-colors">
+            <Globe
+              className="h-3.5 w-3.5 shrink-0 mr-1.5"
+              style={{ color: 'var(--accent-primary)' }}
+              aria-hidden="true"
+            />
             <select
               value={region}
               onChange={(e) => onChangeRegion(e.target.value as SearchRegion)}
               aria-label="Search Region"
               title="Country & language targeting (Auto detects query/browser locale)"
-              className="bg-transparent pr-1 text-xs font-medium text-neutral-800 dark:text-neutral-100 focus:outline-none cursor-pointer"
+              className="bg-transparent pr-1 text-xs font-medium text-neutral-800 dark:text-[#d8e3ec] focus:outline-none cursor-pointer"
             >
               {REGION_OPTIONS.map((opt) => (
-                <option key={opt.id} value={opt.id} className="bg-white dark:bg-black">
+                <option
+                  key={opt.id}
+                  value={opt.id}
+                  className="bg-white text-neutral-900 dark:bg-[#0b0e13] dark:text-[#f0f4f8]"
+                >
                   {opt.label}
                 </option>
               ))}
@@ -109,27 +129,31 @@ export function Navbar({
 
           <button
             onClick={onOpenPrivacyModal}
-            className="flex items-center gap-1.5 rounded-full pharol-glass-chip px-3 py-1.5 text-xs font-medium text-neutral-700 hover:text-neutral-950 dark:text-neutral-200 dark:hover:text-white whitespace-nowrap shrink-0"
+            className="flex items-center gap-1.5 rounded-full pharol-glass-chip px-3 py-1.5 text-xs font-medium text-neutral-700 hover:text-neutral-950 dark:text-[#d8e3ec] dark:hover:text-[#f0f4f8] whitespace-nowrap shrink-0"
             title="Local Storage, Appearance & Privacy Controls"
             aria-label="Local Privacy"
           >
-            <ShieldCheck className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Local Privacy</span>
+            <ShieldCheck className="h-3.5 w-3.5" style={{ color: 'var(--accent-primary)' }} />
+            <span className="hidden sm:inline">Privacy</span>
           </button>
 
           <button
             onClick={onToggleTheme}
             aria-label={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
-            className="flex h-8 w-8 items-center justify-center rounded-full pharol-glass-chip text-neutral-700 dark:text-neutral-200 shrink-0"
+            className="flex h-8 w-8 items-center justify-center rounded-full pharol-glass-chip text-neutral-700 dark:text-[#d8e3ec] hover:text-neutral-950 dark:hover:text-[#f0f4f8] shrink-0"
           >
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {theme === 'dark' ? (
+              <Sun className="h-3.5 w-3.5" style={{ color: 'var(--accent-signal)' }} />
+            ) : (
+              <Moon className="h-3.5 w-3.5" />
+            )}
           </button>
         </div>
       </div>
 
-      {/* Mobile Category Bar (< md) so all 6 tabs remain readable & tappable */}
+      {/* Mobile Barless Category Strip (< md): compact horizontal scroll directly on Layer 0 */}
       <nav
-        className="flex md:hidden items-center justify-between gap-1 border-t border-neutral-900/10 dark:border-white/15 px-3 h-10 overflow-x-auto scrollbar-none"
+        className="flex md:hidden items-center gap-1.5 px-4 pt-2 pb-1 overflow-x-auto scrollbar-none"
         aria-label="Mobile Search Categories"
       >
         {categories.map((cat) => {
@@ -138,19 +162,13 @@ export function Navbar({
             <button
               key={cat.id}
               onClick={() => onSelectCategory(cat.id)}
-              className={`relative h-full flex items-center px-2 text-xs font-medium whitespace-nowrap shrink-0 transition-colors ${
+              className={`rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap shrink-0 transition-all ${
                 active
-                  ? 'text-neutral-950 dark:text-white'
-                  : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100'
+                  ? 'pharol-nav-pill text-neutral-950 dark:text-[#f0f4f8]'
+                  : 'text-neutral-600 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]'
               }`}
             >
-              <span>{cat.label}</span>
-              {active && (
-                <span
-                  aria-hidden="true"
-                  className="absolute bottom-0 left-1 right-1 h-0.5 bg-neutral-950 dark:bg-white"
-                />
-              )}
+              {cat.label}
             </button>
           );
         })}

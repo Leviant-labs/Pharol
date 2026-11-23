@@ -146,18 +146,18 @@ export function ReaderModeModal({
       role="dialog"
       aria-modal="true"
       aria-label={`Reader view: ${currentTitle}`}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 dark:bg-black/75 backdrop-blur-xl p-2 sm:p-5 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 dark:bg-[#040507]/82 backdrop-blur-md p-2 sm:p-5 overflow-y-auto"
     >
       <div
         className={`relative w-full ${
           isFullscreen ? 'max-w-6xl h-[94vh]' : 'max-w-3xl max-h-[90vh]'
-        } flex flex-col rounded-3xl pharol-reader-glass pharol-liquid-iridescent transition-all overflow-hidden`}
+        } flex flex-col rounded-[20px] pharol-reader-glass transition-all overflow-hidden`}
       >
         {/* Top Controls Toolbar */}
-        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-neutral-900/10 dark:border-white/15 bg-white/35 dark:bg-white/[0.04] backdrop-blur-2xl px-4 py-2.5 text-xs text-neutral-600 dark:text-neutral-300">
+        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-neutral-900/10 dark:border-white/[0.08] px-4 py-3 text-xs text-neutral-600 dark:text-[#9aa7b4]">
           <div className="flex items-center gap-2 truncate pr-2">
-            <BookOpen className="h-3.5 w-3.5 text-neutral-800 dark:text-neutral-200 shrink-0" />
-            <span className="font-semibold text-neutral-900 dark:text-neutral-100 truncate">
+            <BookOpen className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent-primary)' }} />
+            <span className="font-semibold text-neutral-900 dark:text-[#f0f4f8] truncate">
               {content?.siteName || 'Reader'}
             </span>
             {content?.readingTimeMinutes && (
@@ -278,8 +278,8 @@ export function ReaderModeModal({
           </div>
         </div>
 
-        {/* Reading Canvas */}
-        <div className="flex-1 overflow-y-auto px-6 py-8 sm:px-12 sm:py-10 text-left">
+        {/* Reading Canvas (suppressed native scrollbar, calm high-contrast reading typography) */}
+        <div className="flex-1 overflow-y-auto pharol-scroll px-6 py-8 sm:px-12 sm:py-10 text-left">
           {loading ? (
             <div className="space-y-5 py-8 max-w-[68ch] mx-auto animate-pulse">
               <div className="h-8 w-4/5 bg-neutral-200 dark:bg-neutral-800 rounded" />
@@ -400,14 +400,14 @@ export function ReaderModeModal({
               )}
 
               {/* Structured Content Blocks */}
-              <div className={`mt-7 space-y-5 text-neutral-800 dark:text-neutral-200 ${getFontSizeClass()}`}>
+              <div className={`mt-7 space-y-5 text-neutral-800 dark:text-[#e6edf4] ${getFontSizeClass()}`}>
                 {content.blocks && content.blocks.length > 0 ? (
                   content.blocks.map((block, idx) => {
                     if (block.type === 'h2') {
                       return (
                         <h2
                           key={idx}
-                          className="pt-4 text-xl sm:text-2xl font-bold tracking-tight text-neutral-950 dark:text-white font-sans"
+                          className="pt-4 text-xl sm:text-2xl font-bold tracking-tight text-neutral-950 dark:text-[#f0f4f8] font-sans"
                         >
                           {block.text}
                         </h2>
@@ -417,7 +417,7 @@ export function ReaderModeModal({
                       return (
                         <h3
                           key={idx}
-                          className="pt-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100 font-sans"
+                          className="pt-2 text-lg font-semibold text-neutral-900 dark:text-[#f0f4f8] font-sans"
                         >
                           {block.text}
                         </h3>
@@ -427,7 +427,7 @@ export function ReaderModeModal({
                       return (
                         <blockquote
                           key={idx}
-                          className="rounded-2xl pharol-glass-inset px-5 py-3.5 italic text-neutral-700 dark:text-neutral-200"
+                          className="pharol-aperture px-5 py-3.5 italic text-neutral-700 dark:text-[#d2dde7]"
                         >
                           {block.text}
                         </blockquote>
@@ -437,7 +437,7 @@ export function ReaderModeModal({
                       return (
                         <pre
                           key={idx}
-                          className="overflow-x-auto rounded-2xl bg-black/85 border border-white/15 text-neutral-100 p-4 text-xs font-mono leading-relaxed backdrop-blur-md"
+                          className="pharol-aperture pharol-scroll overflow-x-auto text-[#e6edf4] p-4 text-xs font-mono leading-relaxed"
                         >
                           <code>{block.text}</code>
                         </pre>

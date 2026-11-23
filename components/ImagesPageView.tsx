@@ -39,8 +39,11 @@ export function ImagesPageView({
           className="flex items-center gap-2 max-w-4xl"
         >
           <div className="relative flex-1">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-neutral-400">
-              <Search className="h-4 w-4" />
+            <div
+              className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4"
+              style={{ color: 'var(--accent-primary)' }}
+            >
+              <Search className="h-4 w-4 opacity-85" />
             </div>
             <input
               type="text"
@@ -48,13 +51,13 @@ export function ImagesPageView({
               onChange={(e) => onUpdateQuery(e.target.value)}
               placeholder="Search Openverse & Wikimedia Commons images..."
               aria-label="Search images"
-              className="w-full rounded-full pharol-glass-inset py-2.5 pl-10 pr-12 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-white/50 focus:outline-none focus:ring-2 focus:ring-sky-500/20 dark:text-neutral-100 dark:placeholder:text-neutral-400 transition-colors"
+              className="w-full rounded-full pharol-liquid-dock py-2.5 pl-11 pr-12 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#38a3b8]/35 dark:text-[#f0f4f8] dark:placeholder:text-[#6c7a89] transition-all"
             />
             {query && (
               <button
                 type="button"
                 onClick={() => onUpdateQuery('')}
-                className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-xs text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
+                className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-xs text-neutral-400 hover:text-neutral-800 dark:text-[#6c7a89] dark:hover:text-[#f0f4f8]"
               >
                 Clear
               </button>
@@ -62,7 +65,7 @@ export function ImagesPageView({
           </div>
           <button
             type="submit"
-            className="rounded-full pharol-liquid-btn px-5 py-2.5 text-xs font-medium shrink-0 whitespace-nowrap"
+            className="rounded-full pharol-cta px-5 py-2.5 text-xs font-medium shrink-0 whitespace-nowrap"
           >
             Search Images
           </button>
@@ -146,9 +149,9 @@ export function ImagesPageView({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 dark:bg-black/75 backdrop-blur-xl p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 dark:bg-[#040507]/82 backdrop-blur-md p-4"
         >
-          <div className="relative max-w-4xl w-full rounded-3xl pharol-reader-glass pharol-liquid-iridescent overflow-hidden flex flex-col md:flex-row">
+          <div className="relative max-w-4xl w-full rounded-[20px] pharol-reader-glass overflow-hidden flex flex-col md:flex-row">
             <button
               onClick={() => setSelectedImage(null)}
               className="absolute top-3 right-3 z-10 rounded-full pharol-glass-chip p-1.5 text-neutral-800 dark:text-white"

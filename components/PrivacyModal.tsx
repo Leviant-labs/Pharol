@@ -311,9 +311,9 @@ export function PrivacyModal({
   };
 
   const tones: Array<{ id: ColorTheme; label: string }> = [
-    { id: 'slate', label: 'Neutral Slate' },
-    { id: 'blue', label: 'Deep Cobalt' },
-    { id: 'green', label: 'Forest Sage' },
+    { id: 'slate', label: 'Atlantic Beacon' },
+    { id: 'blue', label: 'Obsidian Cobalt' },
+    { id: 'green', label: 'Nordic Verdant' },
   ];
 
   const localhostSearchUrl = 'http://localhost:3000/?q=%s';
@@ -357,19 +357,19 @@ export function PrivacyModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="privacy-dialog-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 dark:bg-black/75 backdrop-blur-xl p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 dark:bg-[#040507]/82 backdrop-blur-md p-4"
     >
-      <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-3xl pharol-reader-glass pharol-liquid-iridescent text-left overflow-hidden">
-        <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-neutral-900/10 dark:border-white/15">
+      <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-[20px] pharol-reader-glass text-left overflow-hidden">
+        <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-neutral-900/10 dark:border-white/[0.08]">
           <div className="flex items-center gap-2">
             {activeTab === 'privacy' ? (
-              <ShieldCheck className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
+              <ShieldCheck className="h-4 w-4" style={{ color: 'var(--accent-primary)' }} />
             ) : activeTab === 'keys' ? (
-              <KeyRound className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
+              <KeyRound className="h-4 w-4" style={{ color: 'var(--accent-signal)' }} />
             ) : (
-              <Terminal className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
+              <Terminal className="h-4 w-4" style={{ color: 'var(--accent-primary)' }} />
             )}
-            <h2 id="privacy-dialog-title" className="text-sm font-semibold text-neutral-950 dark:text-white">
+            <h2 id="privacy-dialog-title" className="text-sm font-semibold text-neutral-950 dark:text-[#f0f4f8]">
               {activeTab === 'privacy'
                 ? 'Local Privacy & Preferences'
                 : activeTab === 'keys'
@@ -379,7 +379,7 @@ export function PrivacyModal({
           </div>
           <button
             onClick={handleClose}
-            className="rounded-full pharol-glass-chip p-1.5 text-neutral-600 hover:text-neutral-950 dark:text-neutral-200 dark:hover:text-white"
+            className="rounded-full p-1.5 text-neutral-500 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8] transition-colors"
             aria-label="Close modal"
           >
             <X className="h-4 w-4" />
@@ -387,14 +387,14 @@ export function PrivacyModal({
         </div>
 
         {/* Mode Switch Tabs */}
-        <div className="px-6 pt-3 pb-1 flex items-center gap-4 border-b border-neutral-900/10 dark:border-white/15 text-xs overflow-x-auto scrollbar-none">
+        <div className="px-6 pt-3 pb-1 flex items-center gap-4 border-b border-neutral-900/10 dark:border-white/[0.08] text-xs overflow-x-auto scrollbar-none">
           <button
             type="button"
             onClick={() => setActiveTab('privacy')}
             className={`pb-2 px-1 font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'privacy'
-                ? 'border-neutral-950 text-neutral-950 dark:border-white dark:text-white'
-                : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'
+                ? 'border-[var(--accent-primary)] text-neutral-950 dark:text-[#f0f4f8]'
+                : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]'
             }`}
           >
             Privacy &amp; Local
@@ -404,8 +404,8 @@ export function PrivacyModal({
             onClick={() => setActiveTab('keys')}
             className={`pb-2 px-1 font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'keys'
-                ? 'border-neutral-950 text-neutral-950 dark:border-white dark:text-white'
-                : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'
+                ? 'border-[var(--accent-primary)] text-neutral-950 dark:text-[#f0f4f8]'
+                : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]'
             }`}
           >
             Keys &amp; Hosts {configuredKeysCount > 0 ? `(${configuredKeysCount})` : ''}
@@ -415,15 +415,15 @@ export function PrivacyModal({
             onClick={() => setActiveTab('mcp')}
             className={`pb-2 px-1 font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'mcp'
-                ? 'border-neutral-950 text-neutral-950 dark:border-white dark:text-white'
-                : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'
+                ? 'border-[var(--accent-primary)] text-neutral-950 dark:text-[#f0f4f8]'
+                : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]'
             }`}
           >
             MCP &amp; Browser Search
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 text-xs text-neutral-600 dark:text-neutral-300">
+        <div className="flex-1 overflow-y-auto pharol-scroll px-6 py-4 space-y-4 text-xs text-neutral-600 dark:text-[#c4d0dc]">
           {activeTab === 'privacy' ? (
             <>
               <div className="rounded-2xl pharol-glass-inset p-3.5 space-y-1.5">

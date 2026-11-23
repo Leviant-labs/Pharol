@@ -33,37 +33,37 @@ export function LocalHistoryWidget({
   };
 
   return (
-    <div className="rounded-3xl pharol-liquid-glass p-5 transition-colors">
-      <div className="flex items-center justify-between pb-3 border-b border-neutral-900/10 dark:border-white/10">
+    <div className="transition-colors">
+      <div className="flex items-center justify-between pb-3">
         <div className="flex items-center gap-3 text-xs">
           <button
             onClick={() => setTab('history')}
             className={`flex items-center gap-1.5 font-medium transition-colors whitespace-nowrap ${
               tab === 'history'
-                ? 'text-neutral-950 dark:text-white font-semibold'
-                : 'text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300'
+                ? 'text-neutral-950 dark:text-[#f0f4f8] font-semibold'
+                : 'text-neutral-400 hover:text-neutral-700 dark:text-[#6c7a89] dark:hover:text-[#d8e3ec]'
             }`}
           >
-            <History className="h-3.5 w-3.5" />
+            <History className="h-3.5 w-3.5" style={tab === 'history' ? { color: 'var(--accent-primary)' } : undefined} />
             <span>History</span>
-            <span className="font-mono text-[11px] tabular-nums text-neutral-400">
+            <span className="font-mono text-[11px] tabular-nums text-neutral-400 dark:text-[#6c7a89]">
               {history.length}
             </span>
           </button>
 
-          <span className="text-neutral-300 dark:text-neutral-700" aria-hidden="true">·</span>
+          <span className="text-neutral-300 dark:text-white/15" aria-hidden="true">·</span>
 
           <button
             onClick={() => setTab('bookmarks')}
             className={`flex items-center gap-1.5 font-medium transition-colors whitespace-nowrap ${
               tab === 'bookmarks'
-                ? 'text-neutral-950 dark:text-white font-semibold'
-                : 'text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300'
+                ? 'text-neutral-950 dark:text-[#f0f4f8] font-semibold'
+                : 'text-neutral-400 hover:text-neutral-700 dark:text-[#6c7a89] dark:hover:text-[#d8e3ec]'
             }`}
           >
-            <Bookmark className="h-3.5 w-3.5" />
+            <Bookmark className="h-3.5 w-3.5" style={tab === 'bookmarks' ? { color: 'var(--accent-signal)' } : undefined} />
             <span>Saved</span>
-            <span className="font-mono text-[11px] tabular-nums text-neutral-400">
+            <span className="font-mono text-[11px] tabular-nums text-neutral-400 dark:text-[#6c7a89]">
               {bookmarks.length}
             </span>
           </button>
@@ -72,7 +72,7 @@ export function LocalHistoryWidget({
         {tab === 'history' && history.length > 0 && (
           <button
             onClick={onClearHistory}
-            className="text-[11px] text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 flex items-center gap-1 transition-colors"
+            className="text-[11px] text-neutral-400 hover:text-neutral-800 dark:text-[#6c7a89] dark:hover:text-[#f0f4f8] flex items-center gap-1 transition-colors"
             title="Clear all browser search history"
           >
             <Trash2 className="h-3 w-3" />
@@ -81,31 +81,31 @@ export function LocalHistoryWidget({
         )}
       </div>
 
-      <div className="pt-3">
+      <div className="pt-1">
         {tab === 'history' ? (
           history.length === 0 ? (
-            <div className="py-6 text-center text-xs text-neutral-400 leading-relaxed">
+            <div className="py-6 text-center text-xs text-neutral-400 dark:text-[#6c7a89] leading-relaxed">
               No recent searches yet. Queries remain locally in your browser.
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {history.slice(0, 5).map((item) => (
                 <div
                   key={item.id}
-                  className="group flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-neutral-100/70 dark:hover:bg-neutral-800/50 transition-colors"
+                  className="group pharol-row-hover -mx-2 flex items-center justify-between px-2 py-1.5"
                 >
                   <button
                     onClick={() => onSelectQuery(item.query)}
-                    className="flex items-center gap-2 text-xs text-neutral-700 dark:text-neutral-300 hover:text-neutral-950 dark:hover:text-white truncate text-left"
+                    className="flex items-center gap-2 text-xs text-neutral-700 dark:text-[#d2dde7] hover:text-neutral-950 dark:hover:text-[#f0f4f8] truncate text-left"
                   >
-                    <Search className="h-3 w-3 text-neutral-400 shrink-0" />
+                    <Search className="h-3 w-3 text-neutral-400 dark:text-[#6c7a89] shrink-0" />
                     <span className="truncate">{item.query}</span>
                   </button>
-                  <div className="flex items-center gap-2 text-[11px] text-neutral-400 shrink-0">
+                  <div className="flex items-center gap-2 text-[11px] text-neutral-400 dark:text-[#6c7a89] shrink-0">
                     <span className="tabular-nums">{formatTime(item.timestamp)}</span>
                     <button
                       onClick={() => onRemoveHistory(item.id)}
-                      className="opacity-0 group-hover:opacity-100 hover:text-neutral-800 dark:hover:text-neutral-200"
+                      className="pharol-hover-actions hover:text-neutral-800 dark:hover:text-[#f0f4f8]"
                       aria-label={`Remove ${item.query} from history`}
                     >
                       <Trash2 className="h-3 w-3" />
@@ -116,23 +116,23 @@ export function LocalHistoryWidget({
             </div>
           )
         ) : bookmarks.length === 0 ? (
-          <div className="py-6 text-center text-xs text-neutral-400 leading-relaxed">
+          <div className="py-6 text-center text-xs text-neutral-400 dark:text-[#6c7a89] leading-relaxed">
             No saved results yet. Save any result to access it locally.
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="space-y-1.5">
             {bookmarks.slice(0, 5).map((bm) => (
-              <div key={bm.id} className="text-left text-xs">
+              <div key={bm.id} className="pharol-row-hover -mx-2 px-2 py-1.5 text-left text-xs">
                 <a
                   href={bm.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-medium text-neutral-800 hover:text-neutral-950 hover:underline dark:text-neutral-200 dark:hover:text-white line-clamp-1 flex items-center gap-1"
+                  className="font-medium text-neutral-800 hover:text-neutral-950 dark:text-[#e6edf4] dark:hover:text-white line-clamp-1 flex items-center gap-1"
                 >
                   <span className="truncate">{bm.title}</span>
-                  <ArrowUpRight className="h-3 w-3 text-neutral-400 shrink-0" />
+                  <ArrowUpRight className="h-3 w-3 text-neutral-400 dark:text-[#6c7a89] shrink-0" />
                 </a>
-                <div className="text-[11px] text-neutral-400 truncate font-mono">{bm.url}</div>
+                <div className="text-[11px] text-neutral-400 dark:text-[#6c7a89] truncate font-mono">{bm.url}</div>
               </div>
             ))}
           </div>

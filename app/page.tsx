@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Navbar } from '@/components/Navbar';
+import { OpticalVoidBackdrop } from '@/components/OpticalVoidBackdrop';
 import { LandingHero } from '@/components/LandingHero';
 import { RegularSearchPage } from '@/components/RegularSearchPage';
 import { NewsPageView } from '@/components/NewsPageView';
@@ -767,99 +768,104 @@ export default function HomePage() {
 
   return (
     <div
-      className={`min-h-screen flex flex-col transition-colors duration-150 ${getColorThemeContainerClass()}`}
+      data-tone={colorTheme}
+      className={`relative min-h-screen flex flex-col transition-colors duration-150 ${getColorThemeContainerClass()}`}
     >
-      <Navbar
-        currentCategory={category}
-        onSelectCategory={handleSelectCategory}
-        region={region}
-        onChangeRegion={handleChangeRegion}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
-        onOpenPrivacyModal={() => {
-          setModalInitialTab('privacy');
-          setIsPrivacyModalOpen(true);
-        }}
-        onGoHome={handleGoHome}
-        isSearchActive={isSearching}
-      />
+      <OpticalVoidBackdrop active={loading || answerLoading || followUpLoading} />
 
-      <div className="flex-1">
-        {!isSearching ? (
-          <LandingHero
-            query={query}
-            onUpdateQuery={setQuery}
-            onSearch={(q, cat) => {
-              if (cat) setCategory(cat);
-              executeSearch(q, cat || category);
-            }}
-            category={category}
-            region={region}
-            onSelectCategory={handleSelectCategory}
-            history={history}
-            bookmarks={bookmarks}
-            onRemoveHistory={(id) => {
-              removeLocalHistoryItem(id);
-              setHistory(getLocalHistory());
-            }}
-            onClearHistory={() => {
-              clearAllLocalHistory();
-              setHistory([]);
-            }}
-            isBookmarked={(url) => isUrlBookmarked(url)}
-            onToggleBookmark={handleBookmarkToggle}
-          />
-        ) : (
-          renderSearchResults()
-        )}
-      </div>
+      <div className="relative z-10 flex min-h-screen flex-col">
+        <Navbar
+          currentCategory={category}
+          onSelectCategory={handleSelectCategory}
+          region={region}
+          onChangeRegion={handleChangeRegion}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
+          onOpenPrivacyModal={() => {
+            setModalInitialTab('privacy');
+            setIsPrivacyModalOpen(true);
+          }}
+          onGoHome={handleGoHome}
+          isSearchActive={isSearching}
+        />
 
-      <PrivacyModal
-        isOpen={isPrivacyModalOpen}
-        onClose={() => setIsPrivacyModalOpen(false)}
-        initialTab={modalInitialTab}
-        historyCount={history.length}
-        bookmarksCount={bookmarks.length}
-        onDataCleared={refreshLocalData}
-        colorTheme={colorTheme}
-        onChangeColorTheme={handleChangeColorTheme}
-        providerKeyStatus={providerKeyStatus}
-        onProviderKeysUpdated={handleProviderKeysUpdated}
-      />
-
-      <footer className="border-t border-neutral-900/10 dark:border-white/15 pharol-glass py-5 text-xs text-neutral-600 dark:text-neutral-300 mt-auto">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-neutral-800 dark:text-neutral-200">Pharol</span>
-            <span aria-hidden="true">·</span>
-            <span>Private Metasearch</span>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs">
-            <span>Local-only history</span>
-            <span aria-hidden="true">·</span>
-            <button
-              onClick={() => {
-                setModalInitialTab('mcp');
-                setIsPrivacyModalOpen(true);
+        <div className="flex-1">
+          {!isSearching ? (
+            <LandingHero
+              query={query}
+              onUpdateQuery={setQuery}
+              onSearch={(q, cat) => {
+                if (cat) setCategory(cat);
+                executeSearch(q, cat || category);
               }}
-              className="hover:underline hover:text-neutral-900 dark:hover:text-white"
-            >
-              MCP &amp; Browser Search
-            </button>
-            <span aria-hidden="true">·</span>
-            <button
-              onClick={() => {
-                setModalInitialTab('privacy');
-                setIsPrivacyModalOpen(true);
+              category={category}
+              region={region}
+              onSelectCategory={handleSelectCategory}
+              history={history}
+              bookmarks={bookmarks}
+              onRemoveHistory={(id) => {
+                removeLocalHistoryItem(id);
+                setHistory(getLocalHistory());
               }}
-              className="hover:underline hover:text-neutral-900 dark:hover:text-white"
-            >
-              Privacy &amp; Preferences
-            </button>
-          </div>
+              onClearHistory={() => {
+                clearAllLocalHistory();
+                setHistory([]);
+              }}
+              isBookmarked={(url) => isUrlBookmarked(url)}
+              onToggleBookmark={handleBookmarkToggle}
+            />
+          ) : (
+            renderSearchResults()
+          )}
         </div>
-      </footer>
+
+        <PrivacyModal
+          isOpen={isPrivacyModalOpen}
+          onClose={() => setIsPrivacyModalOpen(false)}
+          initialTab={modalInitialTab}
+          historyCount={history.length}
+          bookmarksCount={bookmarks.length}
+          onDataCleared={refreshLocalData}
+          colorTheme={colorTheme}
+          onChangeColorTheme={handleChangeColorTheme}
+          providerKeyStatus={providerKeyStatus}
+          onProviderKeysUpdated={handleProviderKeysUpdated}
+        />
+
+        <footer className="mt-auto py-7 text-xs text-neutral-500 dark:text-[#6c7a89]">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-neutral-800 dark:text-[#9aa7b4]">Pharol</span>
+              <span aria-hidden="true">·</span>
+              <span>Private Metasearch</span>
+            </div>
+
+            <div className="flex items-center gap-3 text-xs">
+              <span>Local-only history</span>
+              <span aria-hidden="true">·</span>
+              <button
+                onClick={() => {
+                  setModalInitialTab('mcp');
+                  setIsPrivacyModalOpen(true);
+                }}
+                className="hover:text-neutral-900 dark:hover:text-[#f0f4f8] transition-colors"
+              >
+                MCP &amp; Browser Search
+              </button>
+              <span aria-hidden="true">·</span>
+              <button
+                onClick={() => {
+                  setModalInitialTab('privacy');
+                  setIsPrivacyModalOpen(true);
+                }}
+                className="hover:text-neutral-900 dark:hover:text-[#f0f4f8] transition-colors"
+              >
+                Privacy &amp; Preferences
+              </button>
+            </div>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }

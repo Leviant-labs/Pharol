@@ -154,19 +154,19 @@ export function WeatherWidget({ region = 'auto' }: WeatherWidgetProps) {
   const getWeatherIcon = (text: string) => {
     const t = text.toLowerCase();
     if (t.includes('rain') || t.includes('drizzle')) {
-      return <CloudRain className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />;
+      return <CloudRain className="h-5 w-5" style={{ color: 'var(--accent-primary)' }} />;
     }
     if (t.includes('clear') || t.includes('sunny')) {
-      return <Sun className="h-5 w-5 text-neutral-700 dark:text-neutral-300" />;
+      return <Sun className="h-5 w-5" style={{ color: 'var(--accent-signal)' }} />;
     }
-    return <Cloud className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />;
+    return <Cloud className="h-5 w-5 text-neutral-500 dark:text-[#9aa7b4]" />;
   };
 
   return (
-    <div className="rounded-3xl pharol-liquid-glass p-5 transition-colors">
-      <div className="flex items-center justify-between pb-3 border-b border-neutral-900/10 dark:border-white/10">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-900 dark:text-neutral-100 min-w-0">
-          <MapPin className="h-3.5 w-3.5 text-neutral-500 shrink-0" />
+    <div className="transition-colors">
+      <div className="flex items-center justify-between pb-3">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-900 dark:text-[#f0f4f8] min-w-0">
+          <MapPin className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--accent-primary)' }} />
           {isEditing ? (
             <form onSubmit={handleCitySubmit} className="flex items-center gap-1">
               <input
@@ -174,10 +174,10 @@ export function WeatherWidget({ region = 'auto' }: WeatherWidgetProps) {
                 value={inputCity}
                 onChange={(e) => setInputCity(e.target.value)}
                 placeholder="City name"
-                className="w-28 rounded border border-neutral-300 px-1.5 py-0.5 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                className="w-28 rounded-lg bg-white/60 dark:bg-[#040507]/70 border border-neutral-300 dark:border-white/15 px-2 py-0.5 text-xs text-neutral-900 dark:text-[#f0f4f8] focus:outline-none"
                 autoFocus
               />
-              <button type="submit" aria-label="Save city" className="text-neutral-600 hover:text-neutral-950 dark:text-neutral-400">
+              <button type="submit" aria-label="Save city" className="text-neutral-600 hover:text-neutral-950 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]">
                 <Check className="h-3.5 w-3.5" />
               </button>
             </form>
@@ -190,7 +190,7 @@ export function WeatherWidget({ region = 'auto' }: WeatherWidgetProps) {
             >
               <span className="truncate">{weather?.city || city}</span>
               {weather?.country && (
-                <span className="text-[11px] font-normal text-neutral-400 shrink-0">· {weather.country}</span>
+                <span className="text-[11px] font-normal text-neutral-400 dark:text-[#6c7a89] shrink-0">· {weather.country}</span>
               )}
             </button>
           )}
@@ -200,7 +200,7 @@ export function WeatherWidget({ region = 'auto' }: WeatherWidgetProps) {
           <button
             type="button"
             onClick={handleUseLocation}
-            className="text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
+            className="text-neutral-400 hover:text-neutral-800 dark:text-[#6c7a89] dark:hover:text-[#f0f4f8] transition-colors"
             aria-label="Use my location"
             title="Use current browser location"
           >
@@ -209,14 +209,14 @@ export function WeatherWidget({ region = 'auto' }: WeatherWidgetProps) {
           <button
             type="button"
             onClick={() => setTempUnit(tempUnit === 'C' ? 'F' : 'C')}
-            className="text-[11px] font-mono text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200"
+            className="text-[11px] font-mono text-neutral-500 hover:text-neutral-900 dark:text-[#9aa7b4] dark:hover:text-[#f0f4f8]"
           >
             °{tempUnit}
           </button>
           <button
             type="button"
             onClick={() => fetchWeather(city)}
-            className="text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
+            className="text-neutral-400 hover:text-neutral-800 dark:text-[#6c7a89] dark:hover:text-[#f0f4f8] transition-colors"
             aria-label="Refresh weather"
           >
             <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
@@ -225,48 +225,48 @@ export function WeatherWidget({ region = 'auto' }: WeatherWidgetProps) {
       </div>
 
       {geoStatus && (
-        <div className="pt-2 text-[11px] text-amber-600 dark:text-amber-400">{geoStatus}</div>
+        <div className="pt-1 text-[11px]" style={{ color: 'var(--accent-signal)' }}>{geoStatus}</div>
       )}
 
       {loading && !weather ? (
-        <div className="py-8 text-center text-xs text-neutral-400">Loading forecast...</div>
+        <div className="py-6 text-center text-xs text-neutral-400 dark:text-[#6c7a89]">Loading forecast...</div>
       ) : weather ? (
-        <div className="pt-3.5">
-          <div className="flex items-center justify-between">
+        <div className="pt-2">
+          <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-3">
               {getWeatherIcon(weather.weatherText)}
               <div>
-                <div className="text-2xl font-bold tracking-tight text-neutral-950 dark:text-white tabular-nums">
+                <div className="text-2xl font-bold tracking-tight text-neutral-950 dark:text-[#f0f4f8] tabular-nums">
                   {convertTemp(weather.temperature)}°{tempUnit}
                 </div>
-                <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                <div className="text-xs text-neutral-500 dark:text-[#9aa7b4]">
                   {weather.weatherText}
                 </div>
               </div>
             </div>
 
-            <div className="text-right text-[11px] text-neutral-500 dark:text-neutral-400 space-y-1">
+            <div className="text-right text-[11px] text-neutral-500 dark:text-[#9aa7b4] space-y-1">
               <div className="flex items-center justify-end gap-1">
-                <Wind className="h-3 w-3" />
+                <Wind className="h-3 w-3 opacity-70" />
                 <span className="tabular-nums">{weather.windSpeed} km/h</span>
               </div>
               <div className="flex items-center justify-end gap-1">
-                <Droplets className="h-3 w-3" />
-                <span className="tabular-nums">{weather.humidity}% humidity</span>
+                <Droplets className="h-3 w-3 opacity-70" />
+                <span className="tabular-nums">{weather.humidity}%</span>
               </div>
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-4 gap-1 border-t border-neutral-900/10 pt-3 dark:border-white/10 text-center">
+          <div className="mt-5 grid grid-cols-4 gap-1 pt-3 text-center">
             {weather.daily.slice(1, 5).map((d, i) => (
               <div key={i} className="text-[11px]">
-                <div className="text-neutral-400 font-mono text-[10px]">
+                <div className="text-neutral-400 dark:text-[#6c7a89] font-mono text-[10px]">
                   {d.date.length > 5 ? d.date.slice(5) : d.date}
                 </div>
-                <div className="font-semibold text-neutral-800 dark:text-neutral-200 tabular-nums my-0.5">
+                <div className="font-semibold text-neutral-800 dark:text-[#f0f4f8] tabular-nums my-0.5">
                   {convertTemp(d.tempMax)}°
                 </div>
-                <div className="text-[10px] text-neutral-400 tabular-nums">
+                <div className="text-[10px] text-neutral-400 dark:text-[#6c7a89] tabular-nums">
                   {convertTemp(d.tempMin)}°
                 </div>
               </div>
