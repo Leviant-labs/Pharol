@@ -201,6 +201,8 @@ export const KEYLESS_DEV_AND_SCIENCE_ENGINES = [
 ];
 
 export const DEFAULT_ACTIVE_ENGINES = [
+  'serper',
+  'brave',
   'google',
   'duckduckgo',
   'bing',
@@ -239,14 +241,14 @@ export function getStoredActiveEngines(): string[] {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_ACTIVE_ENGINES;
 
-    // Upgrade existing sessions for Google and the keyless developer/science engines
+    // Upgrade existing sessions for Google, optional BYOK SERP engines, and keyless dev/science engines
     const ver = localStorage.getItem(ENGINES_VERSION_KEY);
-    if (ver !== '4') {
+    if (ver !== '5') {
       const merged = Array.from(
-        new Set([...parsed, 'google', ...KEYLESS_AI_ENGINES, ...KEYLESS_DEV_AND_SCIENCE_ENGINES])
+        new Set([...parsed, 'serper', 'brave', 'google', ...KEYLESS_AI_ENGINES, ...KEYLESS_DEV_AND_SCIENCE_ENGINES])
       );
       localStorage.setItem(ENGINES_KEY, JSON.stringify(merged));
-      localStorage.setItem(ENGINES_VERSION_KEY, '4');
+      localStorage.setItem(ENGINES_VERSION_KEY, '5');
       return merged;
     }
 
@@ -260,7 +262,7 @@ export function setStoredActiveEngines(engines: string[]): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(ENGINES_KEY, JSON.stringify(engines));
-    localStorage.setItem(ENGINES_VERSION_KEY, '4');
+    localStorage.setItem(ENGINES_VERSION_KEY, '5');
   } catch {
     // ignore
   }

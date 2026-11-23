@@ -94,6 +94,8 @@ export function AdvancedSearchPanel({
   };
 
   const coreEngines = [
+    { id: 'serper', label: 'Serper (Google)' },
+    { id: 'brave', label: 'Brave Search' },
     { id: 'google', label: 'Google' },
     { id: 'duckduckgo', label: 'DuckDuckGo' },
     { id: 'bing', label: 'Bing Web' },

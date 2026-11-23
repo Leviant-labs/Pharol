@@ -9,6 +9,8 @@ export async function GET() {
       firecrawl: Boolean(process.env.FIRECRAWL_API_KEY),
       keenable: Boolean(process.env.KEENABLE_API_KEY),
       tinyfish: Boolean(process.env.TINYFISH_API_KEY),
+      serper: Boolean(process.env.SERPER_API_KEY),
+      brave: Boolean(process.env.BRAVE_API_KEY),
       context7: Boolean(process.env.CONTEXT7_API_KEY),
       semanticscholar: Boolean(process.env.SEMANTIC_SCHOLAR_API_KEY),
       core: Boolean(process.env.CORE_API_KEY),

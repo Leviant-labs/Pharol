@@ -33,6 +33,17 @@ import {
   setCachedSearchResponse,
 } from './server-cache';
 import { evaluateInstantUtility } from './instant-tools';
+import {
+  searchBraveImages,
+  searchBraveNews,
+  searchBraveVideos,
+  searchBraveWeb,
+  searchSerperImages,
+  searchSerperNews,
+  searchSerperVideos,
+  searchSerperWeb,
+  SerpQuotaError,
+} from './serp-providers';
 import { searchWebEngine, WebEngineError, WEB_ENGINES } from './web-engines';
 import {
   SearchCategory,
@@ -238,6 +249,8 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     parallelApiKey: parallelKey,
     keenableApiKey: keenableKey,
     tinyfishApiKey: tinyfishKey,
+    serperApiKey: serperKey,
+    braveApiKey: braveKey,
     exaApiKey: exaKey,
     firecrawlApiKey: firecrawlKey,
     context7ApiKey: c7Key,
@@ -288,7 +301,9 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       )
     : null;
 
-  const fastEngines = new Set(['bing', 'duckduckgo', 'wikipedia', 'tavily', 'exa', 'freeserp']);
+  const fastEngines = new Set([
+    'duckduckgo', 'wikipedia', 'tavily', 'exa', 'keenable', 'parallel', 'tinyfish', 'serper', 'brave',
+  ]);
   const isEngineEnabled = (eng: string) =>
     (!fastWeb || fastEngines.has(eng)) && (!allowedEngines || allowedEngines.has(eng));
 
@@ -372,7 +387,10 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       }
       if (count > 0) emitBatch();
     } catch (err) {
-      const isQuota = err instanceof RateLimitQuotaError || err instanceof OpenAlexError && [402, 429].includes(err.status);
+      const isQuota =
+        err instanceof RateLimitQuotaError ||
+        err instanceof SerpQuotaError ||
+        (err instanceof OpenAlexError && [402, 429].includes(err.status));
       if (isQuota || err instanceof WebEngineError && err.status === 'cooldown') recordEngineRateLimit(cooldownKey(engineId));
       const isTimeout = err instanceof Error && ['AbortError', 'TimeoutError'].includes(err.name);
       engineHealthMap.set(engineId, {
@@ -1034,6 +1052,40 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
               count++;
             }
             return count;
+          })
+        );
+      }
+
+      if (isEngineEnabled('serper') && serperKey) {
+        subNewsTasks.push(
+          trackEngine('serper-news', 'Serper News', async () => {
+            const items = await searchSerperNews({
+              query: effectiveQuery,
+              apiKey: serperKey,
+              page,
+              timeRange,
+              regionProfile,
+              fetchFn: fetchWithTimeout,
+            });
+            aggregatedResults.push(...items);
+            return items.length;
+          })
+        );
+      }
+
+      if (isEngineEnabled('brave') && braveKey) {
+        subNewsTasks.push(
+          trackEngine('brave-news', 'Brave News', async () => {
+            const items = await searchBraveNews({
+              query: effectiveQuery,
+              apiKey: braveKey,
+              page,
+              timeRange,
+              regionProfile,
+              fetchFn: fetchWithTimeout,
+            });
+            aggregatedResults.push(...items);
+            return items.length;
           })
         );
       }
@@ -2325,6 +2377,38 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         });
         return count;
       }),
+      ...(isEngineEnabled('serper') && serperKey
+        ? [
+            trackEngine('serper-images', 'Serper Images', async () => {
+              const items = await searchSerperImages({
+                query: effectiveQuery,
+                apiKey: serperKey,
+                page,
+                timeRange,
+                regionProfile,
+                fetchFn: fetchWithTimeout,
+              });
+              aggregatedResults.push(...items);
+              return items.length;
+            }),
+          ]
+        : []),
+      ...(isEngineEnabled('brave') && braveKey
+        ? [
+            trackEngine('brave-images', 'Brave Images', async () => {
+              const items = await searchBraveImages({
+                query: effectiveQuery,
+                apiKey: braveKey,
+                page,
+                timeRange,
+                regionProfile,
+                fetchFn: fetchWithTimeout,
+              });
+              aggregatedResults.push(...items);
+              return items.length;
+            }),
+          ]
+        : []),
     ]);
   };
 
@@ -2399,6 +2483,38 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
         }
         return seenIds.size;
       }),
+      ...(isEngineEnabled('serper') && serperKey
+        ? [
+            trackEngine('serper-videos', 'Serper Videos', async () => {
+              const items = await searchSerperVideos({
+                query: effectiveQuery,
+                apiKey: serperKey,
+                page,
+                timeRange,
+                regionProfile,
+                fetchFn: fetchWithTimeout,
+              });
+              aggregatedResults.push(...items);
+              return items.length;
+            }),
+          ]
+        : []),
+      ...(isEngineEnabled('brave') && braveKey
+        ? [
+            trackEngine('brave-videos', 'Brave Videos', async () => {
+              const items = await searchBraveVideos({
+                query: effectiveQuery,
+                apiKey: braveKey,
+                page,
+                timeRange,
+                regionProfile,
+                fetchFn: fetchWithTimeout,
+              });
+              aggregatedResults.push(...items);
+              return items.length;
+            }),
+          ]
+        : []),
     ]);
   };
 
@@ -2785,6 +2901,46 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
     });
   };
 
+  const serperTask = async () => {
+    if (!serperKey) return;
+    if (!isEngineEnabled('serper')) {
+      engineHealthMap.set('serper', { engine: 'serper', label: 'Serper (Google)', status: 'disabled', count: 0, durationMs: 0 });
+      return;
+    }
+    await trackEngine('serper', 'Serper (Google)', async () => {
+      const items = await searchSerperWeb({
+        query: effectiveQuery,
+        apiKey: serperKey,
+        page,
+        timeRange,
+        regionProfile,
+        fetchFn: fetchWithTimeout,
+      });
+      aggregatedResults.push(...items);
+      return items.length;
+    });
+  };
+
+  const braveTask = async () => {
+    if (!braveKey) return;
+    if (!isEngineEnabled('brave')) {
+      engineHealthMap.set('brave', { engine: 'brave', label: 'Brave Search', status: 'disabled', count: 0, durationMs: 0 });
+      return;
+    }
+    await trackEngine('brave', 'Brave Search', async () => {
+      const items = await searchBraveWeb({
+        query: effectiveQuery,
+        apiKey: braveKey,
+        page,
+        timeRange,
+        regionProfile,
+        fetchFn: fetchWithTimeout,
+      });
+      aggregatedResults.push(...items);
+      return items.length;
+    });
+  };
+
   // Run tasks for the effective category
   const tasks: Promise<void>[] = [];
   if (effectiveCategory === 'images') {
@@ -2810,7 +2966,9 @@ export async function runMetasearch(options: RunMetasearchOptions): Promise<Sear
       firecrawlTask(),
       freeserpTask(),
       keenableTask(),
-      tinyfishTask()
+      tinyfishTask(),
+      serperTask(),
+      braveTask()
     );
     if (!fastWeb) tasks.push(newsTask(), codeTask());
     if (!fastWeb && searchIntent.isScience) {

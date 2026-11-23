@@ -38,6 +38,8 @@ export interface UserProviderConfig {
   parallelApiKey?: string;
   keenableApiKey?: string;
   tinyfishApiKey?: string;
+  serperApiKey?: string;
+  braveApiKey?: string;
   openDeepWikiUrl?: string;
 }
 

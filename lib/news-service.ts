@@ -15,6 +15,7 @@ import {
 } from './search-engine';
 import type { NewsAccessFilter, SearchRegion, SearchResult } from './search-types';
 import { resolveProviderConfig, type ProviderContext } from './provider-config';
+import { searchBraveNews, searchSerperNews } from './serp-providers';
 
 const BROWSER_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
@@ -589,7 +590,7 @@ export async function searchNews(options: NewsOptions = {}): Promise<NewsRespons
     q || defaultTopicQueries[topic.toUpperCase()] || (regionProfile.lang === 'pt' ? 'notícias hoje' : 'latest news');
 
   try {
-    const [ddgRes, bingRes, rssRes, hnRes, tfRes, fcRes, tavRes] = await Promise.allSettled([
+    const [ddgRes, bingRes, rssRes, hnRes, tfRes, fcRes, tavRes, serperRes, braveRes] = await Promise.allSettled([
       fetchDuckDuckGoNews(effectiveQuery, regionProfile),
       fetchBingNewsRss(effectiveQuery, regionProfile),
       fetchDirectPublisherFeeds(topic, q, regionProfile),
@@ -599,6 +600,12 @@ export async function searchNews(options: NewsOptions = {}): Promise<NewsRespons
       fetchTinyFishNews(effectiveQuery, regionProfile, providers.tinyfishApiKey),
       fetchFirecrawlNews(effectiveQuery, regionProfile, providers.firecrawlApiKey),
       fetchTavilyNews(effectiveQuery, providers.tavilyApiKey),
+      providers.serperApiKey
+        ? searchSerperNews({ query: effectiveQuery, apiKey: providers.serperApiKey, regionProfile, fetchFn: fetchWithTimeout, timeoutMs: 4000 })
+        : Promise.resolve([]),
+      providers.braveApiKey
+        ? searchBraveNews({ query: effectiveQuery, apiKey: providers.braveApiKey, regionProfile, fetchFn: fetchWithTimeout, timeoutMs: 4000 })
+        : Promise.resolve([]),
     ]);
 
     const combined: SearchResult[] = [
@@ -609,6 +616,8 @@ export async function searchNews(options: NewsOptions = {}): Promise<NewsRespons
       ...(tfRes.status === 'fulfilled' ? tfRes.value : []),
       ...(fcRes.status === 'fulfilled' ? fcRes.value : []),
       ...(tavRes.status === 'fulfilled' ? tavRes.value : []),
+      ...(serperRes.status === 'fulfilled' ? serperRes.value : []),
+      ...(braveRes.status === 'fulfilled' ? braveRes.value : []),
     ];
 
     // Ensure zero Google News wrapper URLs slip through and annotate accessType

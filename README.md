@@ -64,10 +64,12 @@ for every query. Web-adapter request deadlines include reading the response body
 
 ### Fast and Full search
 
-General web search defaults to **Fast**: Bing, DuckDuckGo, Wikipedia, Tavily, Exa
-and FreeSerp (limited to the user's enabled sources), with a shared 2.5-second
-web request budget. **Full** restores the broader set of enabled sources and
-optional news/code enrichment, with a seven-second web request budget. The
+General web search defaults to **Fast**: DuckDuckGo, Wikipedia, Tavily, Exa,
+Keenable, Parallel and TinyFish — plus Serper (Google SERP) and Brave Search
+whenever a key is configured (limited to the user's enabled sources), with a
+shared 2.5-second web request budget. **Full** restores the broader set of
+enabled sources (including Bing, Google HTML, FreeSerp, Firecrawl, Marginalia)
+and optional news/code enrichment, with a seven-second web request budget. The
 browser control reruns the current query and remembers the mode in its URL.
 With streaming, Wikipedia search hits and GitHub repos can appear before their
 optional knowledge panel and wiki-link enrichment.
@@ -139,6 +141,8 @@ TAVILY_API_KEY=       # Tavily: keyless via X-Tavily-Access-Mode
 FIRECRAWL_API_KEY=    # Firecrawl: /v2/search is keyless
 KEENABLE_API_KEY=     # Keenable MCP
 TINYFISH_API_KEY=     # TinyFish web search
+SERPER_API_KEY=       # Optional BYOK Google Web/News/Images/Videos via serper.dev
+BRAVE_API_KEY=        # Optional BYOK Brave Web/News/Images/Videos via api.search.brave.com
 CONTEXT7_API_KEY=
 SEMANTIC_SCHOLAR_API_KEY=
 CORE_API_KEY=
@@ -150,7 +154,8 @@ GITHUB_TOKEN=          # raises GitHub search rate limit
 
 Users add their own keys in **Privacy & Preferences → Keys & Hosts**: Context7,
 Semantic Scholar, CORE, OpenAlex, GitHub, Exa, Firecrawl, Tavily, Parallel,
-Keenable and TinyFish, plus a trusted self-hosted OpenDeepWiki endpoint. OpenAlex
+Keenable, TinyFish, Serper (Google SERP) and Brave Search, plus a trusted
+self-hosted OpenDeepWiki endpoint. OpenAlex
 links to its free-key settings page. Pharol does not register accounts or request
 verification emails on their behalf. Empty fields preserve saved keys; individual
 removal, replacement and removal of all keys are available. When a provider is used by

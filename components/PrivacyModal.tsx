@@ -123,6 +123,18 @@ function ProviderKeysForm({ configured, onSave }: {
       hint: 'Search stays keyless without it · your key raises rate limits',
       placeholder: 'TinyFish API key...',
     },
+    {
+      field: 'serperApiKey',
+      label: 'Serper API Key (Google SERP)',
+      hint: 'Optional BYOK · enables Google Web, News, Images & Videos via serper.dev',
+      placeholder: 'Serper API key...',
+    },
+    {
+      field: 'braveApiKey',
+      label: 'Brave Search API Key',
+      hint: 'Optional BYOK · enables Brave Web, News, Images & Videos via api.search.brave.com',
+      placeholder: 'BSA...',
+    },
   ];
 
 
@@ -332,6 +344,8 @@ export function PrivacyModal({
     { id: 'firecrawl', label: 'Firecrawl', varName: 'FIRECRAWL_API_KEY' },
     { id: 'keenable', label: 'Keenable', varName: 'KEENABLE_API_KEY' },
     { id: 'tinyfish', label: 'TinyFish', varName: 'TINYFISH_API_KEY' },
+    { id: 'serper', label: 'Serper (Google)', varName: 'SERPER_API_KEY' },
+    { id: 'brave', label: 'Brave Search', varName: 'BRAVE_API_KEY' },
   ];
 
   const configuredKeysCount = Object.values(providerKeyStatus).filter(

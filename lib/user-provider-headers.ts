@@ -12,6 +12,8 @@ export const USER_PROVIDER_HEADER_MAP: Array<[keyof UserProviderConfig, string]>
   ['parallelApiKey', 'x-pharol-parallel-key'],
   ['keenableApiKey', 'x-pharol-keenable-key'],
   ['tinyfishApiKey', 'x-pharol-tinyfish-key'],
+  ['serperApiKey', 'x-pharol-serper-key'],
+  ['braveApiKey', 'x-pharol-brave-key'],
   ['openDeepWikiUrl', 'x-pharol-opendeepwiki-url'],
 ];
 

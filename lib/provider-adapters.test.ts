@@ -156,15 +156,25 @@ test('fast web limits fan-out, keeps its own cache, and preserves explicit selec
   const options = { rawQuery: 'light rail timetables', category: 'all' as const, region: 'global' as const };
   const fast = await runMetasearch(options);
   assert.ok(fast.results.some(({ engine }) => engine === 'tavily'));
-  assert.deepEqual([...hosts].sort(), ['api.duckduckgo.com', 'api.tavily.com', 'en.wikipedia.org', 'freeserp.ai', 'html.duckduckgo.com', 'mcp.exa.ai', 'www.bing.com']);
+  assert.deepEqual([...hosts].sort(), [
+    'agent.tinyfish.ai',
+    'api.duckduckgo.com',
+    'api.keenable.ai',
+    'api.tavily.com',
+    'en.wikipedia.org',
+    'html.duckduckgo.com',
+    'mcp.exa.ai',
+    'search.parallel.ai',
+  ]);
   assert.equal((await runMetasearch(options)).cacheHit, true);
   hosts.clear();
   assert.notEqual((await runMetasearch({ ...options, mode: 'full' })).cacheHit, true);
-  assert.ok(hosts.has('search.parallel.ai'));
+  assert.ok(hosts.has('www.bing.com'));
+  assert.ok(hosts.has('freeserp.ai'));
   assert.ok(hosts.has('api.github.com'));
   hosts.clear();
-  await runMetasearch({ ...options, enginesParam: 'parallel' });
-  assert.ok(hosts.has('search.parallel.ai'));
+  await runMetasearch({ ...options, enginesParam: 'freeserp' });
+  assert.ok(hosts.has('freeserp.ai'));
   hosts.clear();
   const bang = { ...options, rawQuery: '!wiki light rail' };
   await runMetasearch({ ...bang, mode: 'fast', userConfig: { exaApiKey: 'fixture' } });
@@ -261,4 +271,126 @@ test('embedded callers with different operator defaults do not share search resu
   assert.equal((await search('second')).results[0]?.url, 'https://example.org/result-2');
   assert.equal((await search('first')).cacheHit, true);
   assert.equal(count, 2);
+});
+
+test('Serper and Brave BYOK activate in Fast, News, Images, and Videos and stay silent when unkeyed', async (t) => {
+  clearSearchCache();
+  t.after(clearSearchCache);
+  const oldTransport = process.env.PHAROL_WEB_TRANSPORT;
+  process.env.PHAROL_WEB_TRANSPORT = 'fetch';
+  t.after(() => { if (oldTransport === undefined) delete process.env.PHAROL_WEB_TRANSPORT; else process.env.PHAROL_WEB_TRANSPORT = oldTransport; });
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const requests: Array<{ url: string; headers: Headers; body?: string }> = [];
+  t.mock.method(globalThis, 'fetch', async (input: string | URL, init?: RequestInit) => {
+    const url = new URL(input);
+    const headers = new Headers(init?.headers);
+    requests.push({ url: url.href, headers, body: typeof init?.body === 'string' ? init.body : undefined });
+    if (url.host === 'google.serper.dev' && url.pathname === '/search') {
+      return Response.json({
+        organic: [{ title: 'Lisbon Metro', link: 'https://example.org/metro', snippet: 'Metro lines in Lisbon.', date: todayIso, position: 1 }],
+      });
+    }
+    if (url.host === 'google.serper.dev' && url.pathname === '/news') {
+      return Response.json({
+        news: [{ title: 'Lisbon transit upgrade', link: 'https://example.org/news-serper', snippet: 'New trams arrive.', source: 'Publico', date: '1 hour ago' }],
+      });
+    }
+    if (url.host === 'google.serper.dev' && url.pathname === '/images') {
+      return Response.json({
+        images: [{ title: 'Tram 28', link: 'https://example.org/tram28', imageUrl: 'https://example.org/tram28.jpg', thumbnailUrl: 'https://example.org/tram28-thumb.jpg', source: 'Example', imageWidth: 800, imageHeight: 600 }],
+      });
+    }
+    if (url.host === 'google.serper.dev' && url.pathname === '/videos') {
+      return Response.json({
+        videos: [{ title: 'Riding Tram 28', link: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', snippet: 'Full route video.', duration: '10:00', channel: 'TransitPT' }],
+      });
+    }
+    if (url.host === 'api.search.brave.com' && url.pathname === '/res/v1/web/search') {
+      return Response.json({
+        web: { results: [{ title: 'Carris Bus Network', url: 'https://example.org/carris', description: 'City buses in Lisbon.', page_age: `${todayIso}T12:00:00Z` }] },
+      });
+    }
+    if (url.host === 'api.search.brave.com' && url.pathname === '/res/v1/news/search') {
+      return Response.json({
+        results: [{ title: 'Carris expands fleet', url: 'https://example.org/news-brave', description: 'Electric buses added.', meta_url: { hostname: 'www.rtp.pt' } }],
+      });
+    }
+    if (url.host === 'api.search.brave.com' && url.pathname === '/res/v1/images/search') {
+      return Response.json({
+        results: [{ title: 'Lisbon ferry', url: 'https://example.org/ferry', source: 'Example', thumbnail: { src: 'https://example.org/ferry-thumb.jpg' }, properties: { width: 1024, height: 768 } }],
+      });
+    }
+    if (url.host === 'api.search.brave.com' && url.pathname === '/res/v1/videos/search') {
+      return Response.json({
+        results: [{ title: 'Lisbon Metro Tour', url: 'https://example.org/video-tour', description: 'Station tour.', video: { duration: '05:12', creator: 'MetroFans', views: 1200 } }],
+      });
+    }
+    return new Response(null, { status: 503 });
+  });
+
+  // Unkeyed fast search must never call Serper or Brave
+  await runMetasearch({ rawQuery: 'Lisbon transit', category: 'all', mode: 'fast', region: 'pt-PT' });
+  assert.ok(!requests.some(({ url }) => url.includes('google.serper.dev') || url.includes('api.search.brave.com')));
+  requests.length = 0;
+
+  // Keyed fast web search activates both with region, time, and pagination
+  const userConfig = { serperApiKey: 'user-serper-secret', braveApiKey: 'user-brave-secret' };
+  const web = await runMetasearch({
+    rawQuery: 'Lisbon transit', category: 'all', mode: 'fast', page: 2, timeRange: 'week', region: 'pt-PT', userConfig,
+  });
+  assert.ok(web.results.some((r) => r.engine === 'serper' && r.url === 'https://example.org/metro'));
+  assert.ok(web.results.some((r) => r.engine === 'brave' && r.url === 'https://example.org/carris'));
+  const serperReq = requests.find(({ url }) => url === 'https://google.serper.dev/search')!;
+  assert.equal(serperReq.headers.get('x-api-key'), 'user-serper-secret');
+  assert.deepEqual(JSON.parse(serperReq.body!), { q: 'Lisbon transit', num: 10, page: 2, gl: 'pt', hl: 'pt', tbs: 'qdr:w' });
+  const braveReq = requests.find(({ url }) => url.startsWith('https://api.search.brave.com/res/v1/web/search'))!;
+  assert.equal(braveReq.headers.get('x-subscription-token'), 'user-brave-secret');
+  const braveUrl = new URL(braveReq.url);
+  assert.equal(braveUrl.searchParams.get('offset'), '1');
+  assert.equal(braveUrl.searchParams.get('freshness'), 'pw');
+  assert.equal(braveUrl.searchParams.get('country'), 'PT');
+  assert.equal(braveUrl.searchParams.get('search_lang'), 'pt');
+
+  // News, Images, and Videos verticals + MCP header override without key leakage
+  const news = await runMetasearch({ rawQuery: 'Lisbon transit', category: 'news', region: 'pt-PT', userConfig });
+  assert.ok(news.results.some((r) => r.engine === 'serper-news'));
+  assert.ok(news.results.some((r) => r.engine === 'brave-news'));
+
+  const images = await runMetasearch({ rawQuery: 'Lisbon tram', category: 'images', region: 'pt-PT', userConfig });
+  assert.ok(images.results.some((r) => r.engine === 'serper-images' && r.thumbnail === 'https://example.org/tram28-thumb.jpg'));
+  assert.ok(images.results.some((r) => r.engine === 'brave-images' && r.thumbnail === 'https://example.org/ferry-thumb.jpg'));
+
+  const videos = await runMetasearch({ rawQuery: 'Lisbon tram', category: 'videos', region: 'pt-PT', userConfig });
+  assert.ok(videos.results.some((r) => r.engine === 'serper-videos' && r.embedUrl === 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ'));
+  assert.ok(videos.results.some((r) => r.engine === 'brave-videos' && r.author === 'MetroFans'));
+
+  const mcpRes = await mcpCall('news_search', { query: 'Lisbon transit' }, {
+    'x-pharol-serper-key': 'mcp-serper-secret',
+    'x-pharol-brave-key': 'mcp-brave-secret',
+  });
+  assert.equal(mcpRes.status, 200);
+  const mcpText = await mcpRes.text();
+  assert.match(mcpText, /serper-news/);
+  assert.match(mcpText, /brave-news/);
+  assert.doesNotMatch(mcpText, /mcp-serper-secret|mcp-brave-secret/);
+});
+
+test('Serper and Brave 429 responses enter per-credential cooldown', async (t) => {
+  clearSearchCache();
+  t.after(clearSearchCache);
+  t.mock.method(globalThis, 'fetch', async (input: string | URL) => {
+    const host = new URL(input).host;
+    if (host === 'google.serper.dev' || host === 'api.search.brave.com') {
+      return new Response(null, { status: 429 });
+    }
+    return new Response(null, { status: 503 });
+  });
+  const res = await runMetasearch({
+    rawQuery: 'quota test',
+    category: 'all',
+    enginesParam: 'serper,brave',
+    userConfig: { serperApiKey: 'quota-s', braveApiKey: 'quota-b' },
+  });
+  assert.equal(res.engineHealth?.find((h) => h.engine === 'serper')?.status, 'cooldown');
+  assert.equal(res.engineHealth?.find((h) => h.engine === 'brave')?.status, 'cooldown');
 });

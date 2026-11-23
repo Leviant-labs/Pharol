@@ -12,6 +12,8 @@ const ENV_KEYS = {
   parallelApiKey: 'PARALLEL_API_KEY',
   keenableApiKey: 'KEENABLE_API_KEY',
   tinyfishApiKey: 'TINYFISH_API_KEY',
+  serperApiKey: 'SERPER_API_KEY',
+  braveApiKey: 'BRAVE_API_KEY',
 } as const satisfies Record<Exclude<keyof UserProviderConfig, 'openDeepWikiUrl'>, string>;
 
 const envFields = Object.keys(ENV_KEYS) as Array<keyof typeof ENV_KEYS>;
